@@ -35,8 +35,11 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
 
   /* Board — calc reserves space for HUD, color picker, hand cards, and buttons */
   --board-max: min(90vw, calc(100dvh - 440px), 420px);
-  --cell-radius: 3px;
-  --cell-border: 2px;
+  --cell-radius: clamp(3px, 0.6vw, 6px);
+  --cell-border: clamp(1.5px, 0.3vw, 3px);
+  --cell-gap: clamp(2px, 0.4vw, 4px);
+  --cell-bevel: 2.5px;     /* default for standard phones */
+  --cell-lift: 2px;        /* bottom shadow for raised-tile look */
 
   /* Cards (legacy) */
   --card-min-w: 88px;
@@ -82,6 +85,8 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
     --map-w: min(96vw, 300px);
     --hand-hover-y: -30px;
     --hand-hover-scale: 1.3;
+    --cell-bevel: 2.5px;
+    --cell-lift: 2px;
   }
 }
 
@@ -96,6 +101,8 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
     --map-w: 96vw;
     --hand-hover-y: -24px;
     --hand-hover-scale: 1.2;
+    --cell-bevel: 2px;
+    --cell-lift: 1.5px;
   }
 }
 
@@ -131,8 +138,10 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
     --map-w: min(85vw, 440px);
     --tcg-w: 96px;
     --hand-overlap: -10px;
-    --hand-hover-y: -50px;
-    --hand-hover-scale: 1.55;
+    --hand-hover-y: -20px;
+    --hand-hover-scale: 1.2;
+    --cell-bevel: 1.5px;
+    --cell-lift: 1.5px;
   }
 }
 
@@ -143,8 +152,10 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
     --map-w: min(70vw, 500px);
     --tcg-w: 130px;
     --hand-overlap: -6px;
-    --hand-hover-y: -60px;
-    --hand-hover-scale: 1.6;
+    --hand-hover-y: -16px;
+    --hand-hover-scale: 1.15;
+    --cell-bevel: 1.5px;
+    --cell-lift: 1.5px;
   }
 }
 
@@ -156,6 +167,8 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
     --pad: 4px;
     --hand-hover-y: -18px;
     --hand-hover-scale: 1.15;
+    --cell-bevel: 1.5px;
+    --cell-lift: 1px;
   }
 }
 
@@ -203,13 +216,13 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
 
 .game-board {
   display: grid;
-  gap: 2px;
-  padding: 3px;
+  gap: var(--cell-gap);
+  padding: var(--cell-gap);
   width: var(--board-max);
   max-width: 100%;
   aspect-ratio: 1;
   border-radius: var(--radius);
-  box-shadow: 0 0 30px rgba(52,152,219,0.08), 0 0 60px rgba(52,152,219,0.04);
+  box-shadow: none;
 }
 
 /* Board glow when dragging a card over it */
@@ -230,43 +243,48 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   color: #fff8;
   font-weight: 700;
   position: relative;
-  transition: box-shadow 0.15s ease, border-color 0.12s ease, filter 0.12s ease;
-  /* Retro bevel: bright top-left edge, dark bottom-right edge */
+  transition: box-shadow 0.12s ease, border-color 0.1s ease, filter 0.12s ease, transform 0.1s ease;
+  /* Retro bevel: hard highlight top-left, deep shadow bottom-right + lift */
   box-shadow:
-    inset 2px 2px 0 rgba(255,255,255,0.25),
-    inset -2px -2px 0 rgba(0,0,0,0.3);
+    inset var(--cell-bevel) var(--cell-bevel) 0 rgba(255,255,255,0.28),
+    inset calc(-1 * var(--cell-bevel)) calc(-1 * var(--cell-bevel)) 0 rgba(0,0,0,0.35),
+    0 var(--cell-lift) 0 rgba(0,0,0,0.3);
 }
 .board-cell:hover {
   z-index: 2;
-  border-color: #fff8;
+  border-color: #fffa;
+  transform: translateY(-1px);
   box-shadow:
-    inset 2px 2px 0 rgba(255,255,255,0.35),
-    inset -2px -2px 0 rgba(0,0,0,0.4),
-    0 0 12px var(--cell-color),
-    0 0 24px var(--cell-color);
+    inset var(--cell-bevel) var(--cell-bevel) 0 rgba(255,255,255,0.38),
+    inset calc(-1 * var(--cell-bevel)) calc(-1 * var(--cell-bevel)) 0 rgba(0,0,0,0.4),
+    0 calc(var(--cell-lift) + 1px) 0 rgba(0,0,0,0.35),
+    0 0 10px var(--cell-color),
+    0 0 20px var(--cell-color);
   filter: brightness(1.2);
 }
 .board-cell:active {
+  transform: translateY(1px);
   box-shadow:
-    inset -1px -1px 0 rgba(255,255,255,0.15),
-    inset 1px 1px 0 rgba(0,0,0,0.35),
-    0 0 8px var(--cell-color);
-  filter: brightness(0.9);
+    inset calc(-1 * var(--cell-bevel)) calc(-1 * var(--cell-bevel)) 0 rgba(255,255,255,0.12),
+    inset var(--cell-bevel) var(--cell-bevel) 0 rgba(0,0,0,0.4),
+    0 0px 0 rgba(0,0,0,0.2);
+  filter: brightness(0.88);
 }
 
 /* Highlighted cells (targeting) */
 .board-cell-lit {
   border-color: #fff !important;
   box-shadow:
-    inset 2px 2px 0 rgba(255,255,255,0.3),
-    inset -2px -2px 0 rgba(0,0,0,0.3),
+    inset var(--cell-bevel) var(--cell-bevel) 0 rgba(255,255,255,0.35),
+    inset calc(-1 * var(--cell-bevel)) calc(-1 * var(--cell-bevel)) 0 rgba(0,0,0,0.3),
+    0 var(--cell-lift) 0 rgba(0,0,0,0.3),
     0 0 8px var(--cell-color),
     0 0 4px #fff8 !important;
   animation: cell-pulse 0.8s ease-in-out infinite alternate;
 }
 @keyframes cell-pulse {
-  0%   { box-shadow: inset 2px 2px 0 rgba(255,255,255,0.3), inset -2px -2px 0 rgba(0,0,0,0.3), 0 0 6px var(--cell-color), 0 0 3px #fff6; }
-  100% { box-shadow: inset 2px 2px 0 rgba(255,255,255,0.35), inset -2px -2px 0 rgba(0,0,0,0.25), 0 0 14px var(--cell-color), 0 0 6px #fffa; }
+  0%   { box-shadow: inset var(--cell-bevel) var(--cell-bevel) 0 rgba(255,255,255,0.3), inset calc(-1 * var(--cell-bevel)) calc(-1 * var(--cell-bevel)) 0 rgba(0,0,0,0.3), 0 var(--cell-lift) 0 rgba(0,0,0,0.3), 0 0 6px var(--cell-color), 0 0 3px #fff6; }
+  100% { box-shadow: inset var(--cell-bevel) var(--cell-bevel) 0 rgba(255,255,255,0.4), inset calc(-1 * var(--cell-bevel)) calc(-1 * var(--cell-bevel)) 0 rgba(0,0,0,0.25), 0 var(--cell-lift) 0 rgba(0,0,0,0.3), 0 0 14px var(--cell-color), 0 0 6px #fffa; }
 }
 
 /* Locked cells */
@@ -291,24 +309,27 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
 /* Preview cells (drag targeting) */
 .board-cell-preview {
   box-shadow:
-    inset 2px 2px 0 rgba(255,255,255,0.3),
-    inset -2px -2px 0 rgba(0,0,0,0.3),
+    inset var(--cell-bevel) var(--cell-bevel) 0 rgba(255,255,255,0.35),
+    inset calc(-1 * var(--cell-bevel)) calc(-1 * var(--cell-bevel)) 0 rgba(0,0,0,0.3),
+    0 var(--cell-lift) 0 rgba(0,0,0,0.3),
     0 0 10px #fff6,
     inset 0 0 0 100px rgba(255,255,255,0.18) !important;
   border-color: #fffa !important;
   animation: preview-pulse 0.6s ease-in-out infinite alternate;
 }
 @keyframes preview-pulse {
-  0%   { box-shadow: inset 2px 2px 0 rgba(255,255,255,0.3), inset -2px -2px 0 rgba(0,0,0,0.3), 0 0 8px #fff4, inset 0 0 0 100px rgba(255,255,255,0.12); }
-  100% { box-shadow: inset 2px 2px 0 rgba(255,255,255,0.35), inset -2px -2px 0 rgba(0,0,0,0.25), 0 0 14px #fff8, inset 0 0 0 100px rgba(255,255,255,0.22); }
+  0%   { box-shadow: inset var(--cell-bevel) var(--cell-bevel) 0 rgba(255,255,255,0.3), inset calc(-1 * var(--cell-bevel)) calc(-1 * var(--cell-bevel)) 0 rgba(0,0,0,0.3), 0 var(--cell-lift) 0 rgba(0,0,0,0.3), 0 0 8px #fff4, inset 0 0 0 100px rgba(255,255,255,0.12); }
+  100% { box-shadow: inset var(--cell-bevel) var(--cell-bevel) 0 rgba(255,255,255,0.4), inset calc(-1 * var(--cell-bevel)) calc(-1 * var(--cell-bevel)) 0 rgba(0,0,0,0.25), 0 var(--cell-lift) 0 rgba(0,0,0,0.3), 0 0 14px #fff8, inset 0 0 0 100px rgba(255,255,255,0.22); }
 }
 
 /* Center target cell during drag */
 .board-cell-target {
   border-color: #fff !important;
+  transform: translateY(-1px);
   box-shadow:
-    inset 2px 2px 0 rgba(255,255,255,0.4),
-    inset -2px -2px 0 rgba(0,0,0,0.3),
+    inset var(--cell-bevel) var(--cell-bevel) 0 rgba(255,255,255,0.45),
+    inset calc(-1 * var(--cell-bevel)) calc(-1 * var(--cell-bevel)) 0 rgba(0,0,0,0.25),
+    0 calc(var(--cell-lift) + 1px) 0 rgba(0,0,0,0.35),
     0 0 16px #fff8,
     0 0 30px var(--cell-color) !important;
 }
@@ -322,8 +343,9 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   0% {
     filter: brightness(2.2) saturate(1.6);
     box-shadow:
-      inset 2px 2px 0 rgba(255,255,255,0.5),
-      inset -2px -2px 0 rgba(0,0,0,0.15),
+      inset var(--cell-bevel) var(--cell-bevel) 0 rgba(255,255,255,0.5),
+      inset calc(-1 * var(--cell-bevel)) calc(-1 * var(--cell-bevel)) 0 rgba(0,0,0,0.15),
+      0 var(--cell-lift) 0 rgba(0,0,0,0.3),
       0 0 20px var(--cell-color),
       0 0 40px var(--cell-color),
       0 0 60px rgba(255,255,255,0.3);
@@ -332,34 +354,27 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   40% {
     filter: brightness(1.5) saturate(1.3);
     box-shadow:
-      inset 2px 2px 0 rgba(255,255,255,0.4),
-      inset -2px -2px 0 rgba(0,0,0,0.2),
+      inset var(--cell-bevel) var(--cell-bevel) 0 rgba(255,255,255,0.4),
+      inset calc(-1 * var(--cell-bevel)) calc(-1 * var(--cell-bevel)) 0 rgba(0,0,0,0.2),
+      0 var(--cell-lift) 0 rgba(0,0,0,0.3),
       0 0 14px var(--cell-color),
-      0 0 28px var(--cell-color),
-      0 0 4px rgba(255,255,255,0.15);
+      0 0 28px var(--cell-color);
     transform: scale(1.03);
   }
   100% {
     filter: brightness(1) saturate(1);
     box-shadow:
-      inset 2px 2px 0 rgba(255,255,255,0.25),
-      inset -2px -2px 0 rgba(0,0,0,0.3);
+      inset var(--cell-bevel) var(--cell-bevel) 0 rgba(255,255,255,0.28),
+      inset calc(-1 * var(--cell-bevel)) calc(-1 * var(--cell-bevel)) 0 rgba(0,0,0,0.35),
+      0 var(--cell-lift) 0 rgba(0,0,0,0.3);
     transform: scale(1);
   }
 }
 
-/* Dragging card in hand fades */
+/* Dragging card in hand — disable bob, add glow */
 .hand-card-dragging {
   animation: none !important;
-}
-
-/* Drag ghost animation */
-.drag-ghost {
-  animation: drag-float 1.5s ease-in-out infinite;
-}
-@keyframes drag-float {
-  0%, 100% { transform: translate(-50%, -60%) scale(1.2) rotate(-3deg); }
-  50%      { transform: translate(-50%, -63%) scale(1.22) rotate(-2deg); }
+  transition: filter 0.2s ease, opacity 0.2s ease !important;
 }
 
 .game-hand-area {
@@ -369,6 +384,7 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   overflow: visible;
   /* Clip bottom at container edge, allow upward + side overflow for hover + fan */
   clip-path: inset(-200% -100vw 0 -100vw);
+  pointer-events: none;       /* don't block clicks on elements behind (board) */
 }
 
 .game-hand {
@@ -380,9 +396,11 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   left: 0;
   right: 0;
   overflow: visible;
+  pointer-events: none;       /* inherit from parent */
 }
 
 .hand-card {
+  pointer-events: auto;       /* re-enable clicks on actual cards */
   margin: 0 var(--hand-overlap);
   transition: transform 0.3s cubic-bezier(.34,1.56,.64,1), z-index 0s;
   transform-origin: center bottom;
@@ -568,6 +586,109 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   border-bottom-width: 1px;
 }
 
+/* ── Game buttons: retro beveled ────────────── */
+.game-btn {
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  font-size: clamp(12px, 3.2vw, 14px);
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: clamp(8px, 2.2vw, 11px) clamp(16px, 4.5vw, 26px);
+  cursor: pointer;
+  position: relative;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.5);
+  transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease;
+}
+
+/* Primary (accent blue) */
+.game-btn-primary {
+  background: linear-gradient(to bottom, #3eaaef 0%, #2980b9 50%, #1f6fa0 100%);
+  border-bottom: 3px solid #16527a;
+  border-right: 2px solid #1a5f8c;
+  box-shadow:
+    0 4px 0 #16527a,
+    0 5px 12px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+/* Danger (red) */
+.game-btn-danger {
+  background: linear-gradient(to bottom, #e85d5d 0%, #c0392b 50%, #a5311f 100%);
+  border-bottom: 3px solid #7a1a10;
+  border-right: 2px solid #8c2218;
+  box-shadow:
+    0 4px 0 #7a1a10,
+    0 5px 12px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+/* Dim (dark grey) */
+.game-btn-dim {
+  background: linear-gradient(to bottom, #555 0%, #383838 50%, #2a2a2a 100%);
+  border-bottom: 3px solid #1a1a1a;
+  border-right: 2px solid #222;
+  box-shadow:
+    0 4px 0 #1a1a1a,
+    0 5px 12px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.12);
+}
+
+/* Shared hover — lift up, deepen shadow */
+.game-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.12);
+}
+.game-btn-primary:hover {
+  box-shadow:
+    0 6px 0 #16527a,
+    0 8px 18px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.25),
+    0 0 14px rgba(52,152,219,0.3);
+}
+.game-btn-danger:hover {
+  box-shadow:
+    0 6px 0 #7a1a10,
+    0 8px 18px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.25),
+    0 0 14px rgba(192,57,43,0.3);
+}
+.game-btn-dim:hover {
+  box-shadow:
+    0 6px 0 #1a1a1a,
+    0 8px 18px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.15);
+}
+
+/* Shared active — press down, flatten shadow */
+.game-btn:active {
+  transform: translateY(3px);
+  filter: brightness(0.92);
+}
+.game-btn-primary:active {
+  box-shadow:
+    0 1px 0 #16527a,
+    0 2px 4px rgba(0,0,0,0.3),
+    inset 0 2px 3px rgba(0,0,0,0.25);
+  border-bottom-width: 1px;
+}
+.game-btn-danger:active {
+  box-shadow:
+    0 1px 0 #7a1a10,
+    0 2px 4px rgba(0,0,0,0.3),
+    inset 0 2px 3px rgba(0,0,0,0.25);
+  border-bottom-width: 1px;
+}
+.game-btn-dim:active {
+  box-shadow:
+    0 1px 0 #1a1a1a,
+    0 2px 4px rgba(0,0,0,0.3),
+    inset 0 2px 3px rgba(0,0,0,0.25);
+  border-bottom-width: 1px;
+}
+
 /* ── Card hover animation (for list views, shop items etc) ── */
 .card-hover {
   transition: all 0.2s ease;
@@ -596,6 +717,45 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   transform: translateY(-18px) scale(1.35);
   z-index: 50;
   filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
+}
+
+/* ── Deck view grid ──────────────────────────────── */
+.deck-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.deck-grid {
+  --deck-card-w: clamp(80px, 20vw, 110px);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--deck-card-w));
+  gap: clamp(10px, 2.5vw, 20px);
+  justify-content: center;
+  justify-items: center;
+  padding: 8px 4px 20px;
+}
+/* Tablet+ portrait */
+@media (min-width: 600px) and (orientation: portrait) {
+  .deck-grid { --deck-card-w: clamp(100px, 14vw, 130px); }
+}
+/* Desktop / wide landscape */
+@media (min-width: 700px) and (orientation: landscape) {
+  .deck-grid { --deck-card-w: clamp(110px, 13vw, 145px); }
+}
+.deck-card-wrap {
+  transition: transform 0.3s cubic-bezier(.34,1.56,.64,1), z-index 0s, filter 0.3s ease, box-shadow 0.3s ease;
+  transform-origin: center center;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 150px;
+  border-radius: 12px;
+}
+.deck-card-wrap:hover {
+  transform: scale(1.08);
+  z-index: 50;
+  filter: brightness(1.15);
+  box-shadow: 0 0 24px 4px rgba(52,152,219,0.45), 0 8px 20px rgba(0,0,0,0.4);
 }
 
 /* ── Reward screen ─────────────────────────────── */
@@ -736,12 +896,12 @@ button, .tap-target {
   .map-legend-item { font-size: 9px !important; }
 }
 
-/* ── Color picker mobile ────────────────────── */
+/* ── Color picker — responsive across all aspect ratios ── */
 .color-picker-cell {
-  width: clamp(34px, 10vw, 44px);
-  height: clamp(34px, 10vw, 44px);
+  width: clamp(30px, min(10vw, 5.5vh), 48px);
+  height: clamp(30px, min(10vw, 5.5vh), 48px);
   border-radius: 50%;
-  border: 3px solid #444;
+  border: clamp(2px, 0.4vw, 4px) solid #444;
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }

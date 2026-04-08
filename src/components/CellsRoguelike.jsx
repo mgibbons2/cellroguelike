@@ -414,11 +414,7 @@ const Overlay = ({ children }) => (
 );
 
 const Btn = ({ onClick, variant="primary", children, style={} }) => (
-  <button onClick={onClick} style={{
-    padding:"clamp(8px, 2.5vw, 12px) clamp(16px, 5vw, 28px)", borderRadius:8, border:"none", cursor:"pointer",
-    fontWeight:700, fontSize:"clamp(12px, 3.5vw, 14px)", color:T.bright, transition:"all .15s",
-    background: variant==="danger"?T.danger:variant==="dim"?"#333":T.accent, ...style,
-  }}>{children}</button>
+  <button onClick={onClick} className={`game-btn game-btn-${variant}`} style={style}>{children}</button>
 );
 
 const Stat = ({ label, value, color }) => (
@@ -558,8 +554,8 @@ const CycleIndicator = ({ cycle }) => (
 
 const ColorPicker = ({ numColors, onPick, disabled }) => (
   <div style={{
-    ...box({borderRadius:10,padding:"4px",marginBottom:"var(--gap)"}),
-    display:"flex", gap:"clamp(4px, 2vw, 8px)", justifyContent:"center", flexWrap:"wrap",
+    ...box({borderRadius:10,padding:"clamp(3px, 0.8vw, 8px)",marginBottom:"var(--gap)"}),
+    display:"flex", gap:"clamp(4px, min(2vw, 1.2vh), 10px)", justifyContent:"center", flexWrap:"wrap",
     opacity: disabled ? 0.18 : 1,
     pointerEvents: disabled ? "none" : "auto",
     transition: "opacity 0.25s ease",
@@ -1141,16 +1137,22 @@ const ShopScreen = ({ state: s, dispatch }) => {
 const DeckViewScreen = ({ state: s, dispatch }) => {
   const all = [...s.hand,...s.deck,...s.discard];
   return (
-    <div style={{ position:"fixed", inset:0, background:"#0a0a0fdd", zIndex:100, backdropFilter:"blur(8px)",
-      display:"flex", flexDirection:"column", alignItems:"center", overflow:"hidden",
+    <div style={{ position:"fixed", inset:0, background:"radial-gradient(ellipse at 50% 30%, #141428ee 0%, #0a0a0ffa 60%)",
+      zIndex:100, display:"flex", flexDirection:"column", alignItems:"center", overflow:"hidden",
       padding:"var(--pad)", paddingTop:`calc(var(--pad) + env(safe-area-inset-top, 0px))`, paddingBottom:`calc(var(--pad) + env(safe-area-inset-bottom, 0px))`,
     }}>
-      <div style={{ ...box({borderRadius:16, padding:"clamp(12px,3vw,24px)", maxWidth:"clamp(420px, 80vw, 900px)", width:"100%", textAlign:"center"}),
+      <div style={{ ...box({borderRadius:16, padding:"clamp(10px,3vw,24px)", maxWidth:"clamp(320px, 92vw, 960px)", width:"100%", textAlign:"center"}),
         display:"flex", flexDirection:"column", minHeight:0, overflow:"hidden", flex:"1 1 0",
       }}>
-        <div style={{ fontSize:18, fontWeight:800, color:T.bright, marginBottom:12, flexShrink:0 }}>DECK ({all.length})</div>
-        <div style={{ display:"flex", gap:10, justifyContent:"center", flexWrap:"wrap", padding:"12px 0", overflowY:"auto", WebkitOverflowScrolling:"touch", minHeight:0, flex:"1 1 auto" }}>
-          {all.map((card,i) => <div key={i} className="shop-card-wrap"><CardView card={card} /></div>)}
+        <div style={{ fontSize:"clamp(16px, 3.5vw, 20px)", fontWeight:800, color:T.bright, marginBottom:8, flexShrink:0 }}>DECK ({all.length})</div>
+        <div className="deck-scroll" style={{ minHeight:0, flex:"1 1 auto" }}>
+          <div className="deck-grid">
+            {all.map((card,i) => (
+              <div key={i} className="deck-card-wrap">
+                <CardView card={card} style={{ width:"var(--deck-card-w)", height:"calc(var(--deck-card-w) * 1.5)" }} />
+              </div>
+            ))}
+          </div>
         </div>
         <div style={{ flexShrink:0, paddingTop:12 }}>
           <Btn variant="dim" onClick={()=>dispatch({type:"CLOSE_DECK"})}>Close</Btn>
@@ -1204,6 +1206,7 @@ export default function CellsRoguelike() {
   const [drag, setDrag] = useState(null); // { idx, x, y }
   const [hoverCell, setHoverCell] = useState(null); // { r, c }
   const boardRef = useRef(null);
+  const dragCardRef = useRef(null);
 
   const needsColorPick = s.targeting && ["color_final","color1","color2"].includes(s.targeting.step);
   const sz = s.board?.length || 5;
@@ -1441,11 +1444,14 @@ export default function CellsRoguelike() {
             const lift = -Math.abs(offset) * (count <= 3 ? 6 : 4);
             const isDragging = drag && drag.idx === i;
             return (
-              <div key={card.uid} className={`hand-card${isDragging?" hand-card-dragging":""}`} style={{
-                transform: isDragging ? "scale(0.85) rotate(0deg)" : `rotate(${rotation}deg) translateY(${lift}px)`,
-                zIndex: isDragging ? 0 : i,
+              <div key={card.uid} className={`hand-card${isDragging?" hand-card-dragging":""}`}
+                ref={isDragging ? dragCardRef : undefined}
+                style={{
+                transform: isDragging ? "rotate(0deg)" : `rotate(${rotation}deg) translateY(${lift}px)`,
+                zIndex: isDragging ? 60 : i,
                 "--bob-delay": `${i * 0.35}s`,
-                opacity: isDragging ? 0.3 : 1,
+                opacity: isDragging ? 1 : (drag ? 0.4 : 1),
+                filter: isDragging ? "brightness(1.3) drop-shadow(0 0 12px rgba(52,152,219,0.7))" : "none",
               }}
                 onMouseDown={playable ? (e)=>onPointerDown(i,e) : undefined}
                 onTouchStart={playable ? (e)=>onPointerDown(i,e) : undefined}
@@ -1458,21 +1464,103 @@ export default function CellsRoguelike() {
         </div>
       </div>
 
-      {/* ── Drag ghost card ── */}
-      {drag && s.hand[drag.idx] && (
-        <div className="drag-ghost" style={{
-          position:"fixed",
-          left: drag.x,
-          top: drag.y,
-          transform: "translate(-50%, -60%) scale(1.2) rotate(-3deg)",
-          zIndex: 200,
-          pointerEvents: "none",
-          filter: `drop-shadow(0 8px 24px rgba(0,0,0,0.6))${hoverCell ? " brightness(1.15)" : ""}`,
-          transition: "filter 0.15s ease",
-        }}>
-          <CardView card={s.hand[drag.idx]} playable />
-        </div>
-      )}
+      {/* ── Drag targeting arrow ── */}
+      {drag && s.hand[drag.idx] && (() => {
+        const cardEl = dragCardRef.current;
+        if (!cardEl) return null;
+        const rect = cardEl.getBoundingClientRect();
+        const sx = rect.left + rect.width / 2;
+        const sy = rect.top;
+        const ex = drag.x;
+        const ey = drag.y;
+        const dx = ex - sx;
+        const dy = ey - sy;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const mx = (sx + ex) / 2;
+        const my = Math.min(sy, ey) - Math.max(40, dist * 0.25);
+        const onBoard = !!hoverCell;
+        // Arrowhead angle from curve tangent at endpoint
+        const t = 0.97;
+        const tanX = 2*(1-t)*(mx-sx) + 2*t*(ex-mx);
+        const tanY = 2*(1-t)*(my-sy) + 2*t*(ey-my);
+        const angle = Math.atan2(tanY, tanX);
+        const aLen = onBoard ? 14 : 10;
+        const pathD = `M${sx},${sy} Q${mx},${my} ${ex},${ey}`;
+        const gradId = "targ-grad";
+        const glowId = "targ-glow";
+        const flowId = "targ-flow";
+        return (
+          <svg style={{ position:"fixed", inset:0, width:"100vw", height:"100vh", zIndex:199, pointerEvents:"none" }}>
+            <defs>
+              <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor={T.gold} stopOpacity="0.6"/>
+                <stop offset="50%" stopColor={onBoard ? T.accent : "#667"} stopOpacity="0.9"/>
+                <stop offset="100%" stopColor={onBoard ? "#fff" : "#aaa"} stopOpacity="1"/>
+              </linearGradient>
+              <filter id={glowId}>
+                <feGaussianBlur stdDeviation={onBoard ? "5" : "2"} result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+              <filter id="reticle-pulse">
+                <feGaussianBlur stdDeviation="4" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+
+            {/* Outer glow trail */}
+            <path d={pathD} fill="none"
+              stroke={onBoard ? T.accent : "#555"} strokeWidth={onBoard ? 10 : 6}
+              strokeLinecap="round" opacity={0.15}
+              filter={`url(#${glowId})`}
+            />
+            {/* Main energy beam */}
+            <path d={pathD} fill="none"
+              stroke={`url(#${gradId})`} strokeWidth={onBoard ? 3.5 : 2}
+              strokeLinecap="round" filter={`url(#${glowId})`}
+            />
+            {/* Flowing energy particles (animated dashes) */}
+            <path d={pathD} fill="none"
+              stroke={onBoard ? "#fff" : "#999"} strokeWidth={onBoard ? 2 : 1.5}
+              strokeLinecap="round" strokeDasharray="3 14"
+              opacity={onBoard ? 0.7 : 0.4}
+            >
+              <animate attributeName="stroke-dashoffset" from="0" to="-34" dur="0.6s" repeatCount="indefinite"/>
+            </path>
+
+            {/* Arrowhead — diamond shape */}
+            <polygon
+              points={`${ex},${ey} ${ex - aLen*Math.cos(angle - 0.45)},${ey - aLen*Math.sin(angle - 0.45)} ${ex - aLen*1.4*Math.cos(angle)},${ey - aLen*1.4*Math.sin(angle)} ${ex - aLen*Math.cos(angle + 0.45)},${ey - aLen*Math.sin(angle + 0.45)}`}
+              fill={onBoard ? "#fff" : "#999"} opacity={onBoard ? 0.9 : 0.5}
+              filter={`url(#${glowId})`}
+            />
+
+            {/* Targeting reticle — crosshair style */}
+            {onBoard && <>
+              <circle cx={ex} cy={ey} r={18} fill="none"
+                stroke={T.accent} strokeWidth={1.5} opacity={0.5}
+                strokeDasharray="6 6" filter="url(#reticle-pulse)"
+              >
+                <animateTransform attributeName="transform" type="rotate"
+                  from={`0 ${ex} ${ey}`} to={`360 ${ex} ${ey}`} dur="3s" repeatCount="indefinite"/>
+              </circle>
+              <circle cx={ex} cy={ey} r={10} fill="none"
+                stroke="#fff" strokeWidth={1.5} opacity={0.7}
+              />
+              <circle cx={ex} cy={ey} r={3} fill={T.accent} opacity={0.9}
+                filter="url(#reticle-pulse)"
+              />
+              {/* Crosshair lines */}
+              <line x1={ex-18} y1={ey} x2={ex-12} y2={ey} stroke="#fff" strokeWidth={1.5} opacity={0.5}/>
+              <line x1={ex+12} y1={ey} x2={ex+18} y2={ey} stroke="#fff" strokeWidth={1.5} opacity={0.5}/>
+              <line x1={ex} y1={ey-18} x2={ex} y2={ey-12} stroke="#fff" strokeWidth={1.5} opacity={0.5}/>
+              <line x1={ex} y1={ey+12} x2={ex} y2={ey+18} stroke="#fff" strokeWidth={1.5} opacity={0.5}/>
+            </>}
+            {!onBoard && <circle cx={ex} cy={ey} r={6} fill="none"
+              stroke="#666" strokeWidth={1.5} opacity={0.4} strokeDasharray="3 3"
+            />}
+          </svg>
+        );
+      })()}
 
       {/* ── Action buttons ── */}
       <div className="game-actions">
