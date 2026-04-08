@@ -345,7 +345,7 @@ const reducer = (s, a) => {
 
     case "SELECT_CARD": {
       const card = s.hand[a.idx];
-      if (!card || card.cost > s.energy || s.targeting) return s;
+      if (!card || card.cost > s.energy) return s;
       if (card.special) {
         const { hand, discard } = discardFromHand(s, a.idx);
         const sz = s.board?.length||5;
@@ -1251,11 +1251,11 @@ export default function CellsRoguelike() {
 
   const onPointerDown = useCallback((idx, e) => {
     const card = s.hand[idx];
-    if (!card || card.cost > s.energy || s.targeting) return;
+    if (!card || card.cost > s.energy) return;
     const touch = e.touches ? e.touches[0] : e;
     didDrag.current = false;
     dragRef.current = { idx, startX: touch.clientX, startY: touch.clientY };
-  }, [s.hand, s.energy, s.targeting]);
+  }, [s.hand, s.energy]);
 
   // Attach global listeners once (read from refs to avoid stale closures)
   useEffect(() => {
@@ -1436,7 +1436,7 @@ export default function CellsRoguelike() {
       <div className="game-hand-area">
         <div className="game-hand">
           {s.hand.length ? s.hand.map((card,i) => {
-            const playable = card.cost <= s.energy && !s.targeting;
+            const playable = card.cost <= s.energy;
             const count = s.hand.length;
             const mid = (count - 1) / 2;
             const offset = i - mid;
@@ -1450,7 +1450,7 @@ export default function CellsRoguelike() {
                 transform: isDragging ? "rotate(0deg)" : `rotate(${rotation}deg) translateY(${lift}px)`,
                 zIndex: isDragging ? 60 : i,
                 "--bob-delay": `${i * 0.35}s`,
-                opacity: isDragging ? 1 : (drag ? 0.4 : 1),
+                opacity: 1,
                 filter: isDragging ? "brightness(1.3) drop-shadow(0 0 12px rgba(52,152,219,0.7))" : "none",
               }}
                 onMouseDown={playable ? (e)=>onPointerDown(i,e) : undefined}
