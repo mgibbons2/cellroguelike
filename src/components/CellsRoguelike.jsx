@@ -278,13 +278,38 @@ const buildPuzzle = (s, layer, nodeType) => {
   };
 };
 
-const checkWin = (s, newBoard) => {
-  if (isSolved(newBoard)) {
-    const bonus = (s.maxTurns - s.turn + 1) * 100 * (s.mapLayer + 1);
-    const goldEarned = 15 + Math.floor(Math.random() * 10) + s.mapLayer * 5;
-    return { ...s, board: newBoard, score: s.score + bonus, gold: s.gold + goldEarned, phase: P.WIN, _goldEarned: goldEarned };
+// Auto-unlock: if every neighbor of a locked cell matches the locked cell's color, unlock it
+const autoUnlock = (board, locked) => {
+  const sz = board.length;
+  let changed = false;
+  const newLocked = locked.map(r => [...r]);
+  for (let r = 0; r < sz; r++) {
+    for (let c = 0; c < sz; c++) {
+      if (!newLocked[r][c]) continue;
+      const color = board[r][c];
+      let allMatch = true;
+      let hasNeighbor = false;
+      for (const [dr, dc] of DIRS) {
+        const nr = r + dr, nc = c + dc;
+        if (!inB(nr, nc, sz)) continue;
+        hasNeighbor = true;
+        if (board[nr][nc] !== color) { allMatch = false; break; }
+      }
+      if (hasNeighbor && allMatch) { newLocked[r][c] = false; changed = true; }
+    }
   }
-  return { ...s, board: newBoard };
+  return changed ? newLocked : locked;
+};
+
+const checkWin = (s, newBoard) => {
+  const newLocked = autoUnlock(newBoard, s.locked);
+  const ns = newLocked !== s.locked ? { ...s, locked: newLocked } : s;
+  if (isSolved(newBoard)) {
+    const bonus = (ns.maxTurns - ns.turn + 1) * 100 * (ns.mapLayer + 1);
+    const goldEarned = 15 + Math.floor(Math.random() * 10) + ns.mapLayer * 5;
+    return { ...ns, board: newBoard, score: ns.score + bonus, gold: ns.gold + goldEarned, phase: P.WIN, _goldEarned: goldEarned };
+  }
+  return { ...ns, board: newBoard };
 };
 
 const afterCardPlayed = (s, cardIdx, newBoard, args) => {
@@ -776,8 +801,9 @@ const AnimatedBg = ({ opacity = 0.12, vignette = true }) => {
 
 // ── Full-page screens ─────────────────────────────────────
 const TUTORIAL_STEPS = [
-  { title:"Tap to Cycle", icon:"🎨", text:"Tap any cell on the board to cycle its color (and all connected same-colored cells) to the next color in the cycle." },
+  { title:"Tap to Cycle", icon:"🎨", text:"Tap any cell on the board to cycle its color (and all connected cells) to the next color in the cycle." },
   { title:"Play Cards", icon:"🃏", text:"Drag cards from your hand to play powerful effects — paint areas, swap colors, snipe cells, and more. Each card costs energy." },
+  { title:"Locked Cells", icon:"🔒", text:"Some cells are locked and can't be recolored. Surround a locked cell with its own color to unlock it, or use a Purify card." },
   { title:"Clear the Board", icon:"✨", text:"Make every cell the same color before you run out of turns. Fewer turns used = more bonus points and gold." },
   { title:"Explore the Map", icon:"🗺", text:"Choose your path through 13 layers. Fight puzzles, visit shops, collect relics, and face the final boss." },
   { title:"Build Your Deck", icon:"📦", text:"Earn new cards after each puzzle. Visit shops to buy cards and relics, or remove weak cards to streamline your deck." },
@@ -1456,9 +1482,8 @@ export default function CellsRoguelike() {
                 onClick={()=>dispatch({type:"CLICK_CELL",r,c})}
                 style={{
                   "--cell-color": color,
-                  fontSize:Math.max(6, 11-sz),
                 }}
-              >{isLocked && "🔒"}</div>
+              >{isLocked && <span style={{ fontSize:"clamp(8px, min(2.5vw, 2.5vh), 16px)", lineHeight:1 }}>🔒</span>}</div>
             );
           }))}
         </div>
