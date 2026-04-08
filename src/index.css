@@ -131,7 +131,7 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   :root {
     --gap: 8px;
     --pad: 12px;
-    --board-max: min(70vw, calc(100dvh - 510px), 480px);
+    --board-max: min(70vw, calc(100dvh - 480px), 480px);
     --card-min-w: 100px;
     --card-max-w: 130px;
     --card-pad: 10px 12px;
@@ -142,6 +142,12 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
     --hand-hover-scale: 1.2;
     --cell-bevel: 1.5px;
     --cell-lift: 1.5px;
+  }
+}
+/* ── Foldables open / tall tablets (600px+ wide, 800px+ tall) ── */
+@media (min-width: 600px) and (min-height: 800px) {
+  :root {
+    --board-max: min(85vw, calc(100dvh - 460px), 560px);
   }
 }
 
@@ -191,7 +197,10 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
 @supports (height: 100dvh) {
   .game-shell { height: 100dvh; }
 }
-/* On tall desktops, widen shell so the board can grow */
+/* On tall wide screens (foldables open, tablets, desktops), widen shell so the board can grow */
+@media (min-height: 800px) and (min-width: 600px) {
+  .game-shell { max-width: 640px; }
+}
 @media (min-height: 900px) and (min-width: 700px) {
   .game-shell { max-width: 760px; }
 }
