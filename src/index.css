@@ -27,8 +27,14 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   --pad: 8px;
   --radius: 10px;
 
-  /* Board */
-  --board-max: min(85vw, 85vh - 320px, 420px);  /* fit between HUD and hand */
+  /* Safe areas (for notched/punch-hole phones) */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  /* Board — calc reserves space for HUD, color picker, hand cards, and buttons */
+  --board-max: min(90vw, calc(100dvh - 440px), 420px);
   --cell-radius: 3px;
   --cell-border: 2px;
 
@@ -37,78 +43,119 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   --card-max-w: 108px;
   --card-pad: 7px 9px;
 
-  /* TCG Cards */
-  --tcg-w: 80px;
-  --tcg-art-h: 44px;
-  --tcg-art-fs: 28px;
-  --hand-overlap: -12px;
+  /* TCG Cards — fixed aspect ratio (w × 1.55 = h) */
+  --tcg-w: clamp(62px, 18vw, 80px);
+  --tcg-h: calc(var(--tcg-w) * 1.55);
+  --tcg-art-h: calc(var(--tcg-w) * 0.55);
+  --tcg-art-fs: calc(var(--tcg-w) * 0.35);
+  --hand-overlap: clamp(-18px, -3vw, -10px);
 
   /* Map */
-  --map-w: min(90vw, 360px);
+  --map-w: min(92vw, 360px);
 
   /* Typography */
   --fs-title: clamp(32px, 8vw, 48px);
-  --fs-stat-val: clamp(14px, 3.5vw, 18px);
-  --fs-stat-label: clamp(10px, 2.5vw, 13px);
-  --fs-card-name: 11px;
-  --fs-card-desc: 9px;
+  --fs-stat-val: clamp(13px, 3.5vw, 18px);
+  --fs-stat-label: clamp(9px, 2.5vw, 13px);
+  --fs-card-name: calc(var(--tcg-w) * 0.14);
+  --fs-card-desc: calc(var(--tcg-w) * 0.11);
 
   /* Touch */
   --tap-min: 44px;
+
+  /* Hand hover scale */
+  --hand-hover-y: -40px;
+  --hand-hover-scale: 1.45;
 }
 
-/* ── Tablet / Desktop ─────────────────────────── */
+/* ── Small phones (SE, mini, Galaxy Fold folded) ─ */
+@media (max-width: 375px) {
+  :root {
+    --board-max: min(92vw, calc(100dvh - 420px), 300px);
+    --gap: 4px;
+    --pad: 6px;
+    --card-min-w: 74px;
+    --card-max-w: 92px;
+    --card-pad: 5px 7px;
+    --tcg-w: clamp(54px, 20vw, 66px);
+    --hand-overlap: -16px;
+    --map-w: min(96vw, 300px);
+    --hand-hover-y: -30px;
+    --hand-hover-scale: 1.3;
+  }
+}
+
+/* ── Galaxy Fold folded (~280px) ─────────────── */
+@media (max-width: 300px) {
+  :root {
+    --board-max: min(96vw, calc(100dvh - 410px), 260px);
+    --gap: 3px;
+    --pad: 4px;
+    --tcg-w: clamp(46px, 22vw, 56px);
+    --hand-overlap: -20px;
+    --map-w: 96vw;
+    --hand-hover-y: -24px;
+    --hand-hover-scale: 1.2;
+  }
+}
+
+/* ── Short phones (< 700px tall, e.g. SE, old Androids) ── */
+@media (max-height: 700px) {
+  :root {
+    --board-max: min(88vw, calc(100dvh - 430px), 360px);
+    --hand-hover-y: -28px;
+    --hand-hover-scale: 1.3;
+  }
+}
+
+/* ── Very short screens (< 600px tall) ───────── */
+@media (max-height: 600px) {
+  :root {
+    --board-max: min(80vw, calc(100dvh - 410px), 300px);
+    --gap: 3px;
+    --pad: 4px;
+    --hand-hover-y: -20px;
+    --hand-hover-scale: 1.2;
+  }
+}
+
+/* ── Tablet / foldable open (600-1023px) ─────── */
 @media (min-width: 600px) {
   :root {
     --gap: 8px;
     --pad: 12px;
-    --board-max: min(75vw, 70vh, 480px);
+    --board-max: min(70vw, calc(100dvh - 510px), 480px);
     --card-min-w: 100px;
     --card-max-w: 130px;
     --card-pad: 10px 12px;
     --map-w: min(85vw, 440px);
-    --fs-card-name: 13px;
-    --fs-card-desc: 10px;
     --tcg-w: 96px;
-    --tcg-art-h: 52px;
-    --tcg-art-fs: 32px;
     --hand-overlap: -10px;
+    --hand-hover-y: -50px;
+    --hand-hover-scale: 1.55;
   }
 }
 
+/* ── Desktop (1024px+) ───────────────────────── */
 @media (min-width: 1024px) {
   :root {
-    --board-max: min(50vw, 65vh, 520px);
+    --board-max: min(50vw, calc(100dvh - 560px), 720px);
     --map-w: min(70vw, 500px);
-    --tcg-w: 105px;
-    --tcg-art-h: 56px;
-    --tcg-art-fs: 36px;
-    --hand-overlap: -8px;
+    --tcg-w: 130px;
+    --hand-overlap: -6px;
+    --hand-hover-y: -60px;
+    --hand-hover-scale: 1.6;
   }
 }
 
-/* Small phones (SE, mini) */
-@media (max-width: 375px) {
-  :root {
-    --board-max: min(88vw, 70vh - 280px, 320px);
-    --card-min-w: 78px;
-    --card-max-w: 96px;
-    --card-pad: 5px 7px;
-    --fs-card-name: 10px;
-    --fs-card-desc: 8px;
-    --tcg-w: 68px;
-    --tcg-art-h: 36px;
-    --tcg-art-fs: 22px;
-    --hand-overlap: -16px;
-  }
-}
-
-/* Landscape phones */
+/* ── Landscape phones ────────────────────────── */
 @media (max-height: 500px) and (orientation: landscape) {
   :root {
-    --board-max: min(45vh, 40vw, 280px);
-    --gap: 4px;
-    --pad: 6px;
+    --board-max: min(42vh, 38vw, calc(100dvh - 400px), 260px);
+    --gap: 3px;
+    --pad: 4px;
+    --hand-hover-y: -18px;
+    --hand-hover-scale: 1.15;
   }
 }
 
@@ -117,11 +164,22 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   max-width: 520px;
   margin: 0 auto;
   padding: var(--pad);
+  padding-top: calc(var(--pad) + var(--safe-top));
+  padding-bottom: calc(var(--pad) + var(--safe-bottom));
+  padding-left: calc(var(--pad) + var(--safe-left));
+  padding-right: calc(var(--pad) + var(--safe-right));
   height: 100dvh;
-  height: 100vh;
+  height: 100vh;   /* fallback for browsers without dvh */
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+@supports (height: 100dvh) {
+  .game-shell { height: 100dvh; }
+}
+/* On tall desktops, widen shell so the board can grow */
+@media (min-height: 900px) and (min-width: 700px) {
+  .game-shell { max-width: 760px; }
 }
 
 .game-header {
@@ -133,11 +191,11 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
 }
 
 .game-board-area {
-  flex: 1 1 auto;             /* board fills remaining space */
+  flex: 0 0 auto;             /* no grow, no shrink — board-max handles sizing */
   display: flex;
-  align-items: center;
+  align-items: flex-start;    /* anchor board to top — no floating */
   justify-content: center;
-  min-height: 0;              /* allow flex shrinking */
+  min-height: 0;
   padding: var(--gap) 0;
   overflow: hidden;
 }
@@ -149,7 +207,6 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   width: var(--board-max);
   max-width: 100%;
   aspect-ratio: 1;
-  max-height: 100%;           /* never overflow the flex area */
   border-radius: var(--radius);
   box-shadow: 0 0 30px rgba(52,152,219,0.08), 0 0 60px rgba(52,152,219,0.04);
 }
@@ -305,18 +362,23 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
 }
 
 .game-hand-area {
-  flex: 0 0 auto;
+  flex: 1 1 0;                /* fill space between color picker and buttons */
+  min-height: 0;
+  position: relative;
   overflow: visible;
-  padding: 4px 0 8px;
+  /* Clip bottom at container edge, allow unlimited upward overflow for hover */
+  clip-path: inset(-200% -20px 0 -20px);
 }
 
 .game-hand {
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  padding: 8px 0 0;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
   overflow: visible;
-  position: relative;
 }
 
 .hand-card {
@@ -333,14 +395,14 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
 }
 
 .hand-card:hover {
-  transform: translateY(-50px) scale(1.55) rotate(0deg) !important;
+  transform: translateY(var(--hand-hover-y)) scale(var(--hand-hover-scale)) rotate(0deg) !important;
   z-index: 50 !important;
   animation: none;
   filter: drop-shadow(0 12px 24px rgba(0,0,0,0.6));
 }
 
 .hand-card:active {
-  transform: translateY(-35px) scale(1.4) rotate(0deg) !important;
+  transform: translateY(calc(var(--hand-hover-y) * 0.7)) scale(calc(var(--hand-hover-scale) * 0.92)) rotate(0deg) !important;
   animation: none;
 }
 
@@ -350,6 +412,7 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   gap: var(--gap);
   justify-content: center;
   padding: var(--gap) 0;
+  flex-shrink: 0;
 }
 
 /* ── Map layout ───────────────────────────────── */
@@ -357,11 +420,18 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   max-width: 520px;
   margin: 0 auto;
   padding: var(--pad);
+  padding-top: calc(var(--pad) + var(--safe-top));
+  padding-bottom: calc(var(--pad) + var(--safe-bottom));
+  padding-left: calc(var(--pad) + var(--safe-left));
+  padding-right: calc(var(--pad) + var(--safe-right));
   height: 100dvh;
   height: 100vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+@supports (height: 100dvh) {
+  .map-shell { height: 100dvh; }
 }
 
 .map-scroll {
@@ -381,19 +451,31 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
+@supports (height: 100dvh) {
+  .overlay-scroll { max-height: 70dvh; }
+}
 
 /* ── Full-screen pages (title, game over, victory) ── */
 .full-page {
   max-width: 520px;
   margin: 0 auto;
   padding: var(--pad);
+  padding-top: calc(var(--pad) + var(--safe-top));
+  padding-bottom: calc(var(--pad) + var(--safe-bottom));
+  padding-left: calc(var(--pad) + var(--safe-left));
+  padding-right: calc(var(--pad) + var(--safe-right));
   height: 100dvh;
   height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 20px;
+  gap: clamp(12px, 3vh, 20px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+@supports (height: 100dvh) {
+  .full-page { height: 100dvh; }
 }
 
 /* ── Title screen ────────────────────────────── */
@@ -518,14 +600,15 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
 /* ── Reward screen ─────────────────────────────── */
 .reward-backdrop {
   background: radial-gradient(ellipse at 50% 40%, #1a1a3a 0%, #0a0a0fee 60%, #0a0a0f 100%);
-  backdrop-filter: blur(10px);
+  contain: layout style;
 }
 .reward-title {
   animation: reward-glow 2.5s ease-in-out infinite;
+  will-change: opacity;
 }
 @keyframes reward-glow {
-  0%, 100% { filter: brightness(1); }
-  50%      { filter: brightness(1.3); }
+  0%, 100% { opacity: 0.85; }
+  50%      { opacity: 1; }
 }
 
 /* Card float-in entrance */
@@ -538,6 +621,8 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   position: relative;
   z-index: 1;
   cursor: pointer;
+  will-change: transform, opacity;
+  contain: layout style;
 }
 @keyframes reward-card-in {
   0%   { opacity: 0; transform: translateY(80px) scale(0.6) rotate(-6deg); }
@@ -550,10 +635,11 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   animation: reward-bob 2.8s ease-in-out infinite;
   animation-delay: var(--bob-delay, 0s);
   transition: transform 0.3s cubic-bezier(.34,1.56,.64,1), filter 0.3s ease;
+  will-change: transform;
 }
 @keyframes reward-bob {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-10px); }
+  0%, 100% { transform: translate3d(0,0,0); }
+  50%      { transform: translate3d(0,-10px,0); }
 }
 
 /* Rarity glow under each card */
@@ -565,8 +651,9 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   filter: blur(12px);
   opacity: 0.35;
   border-radius: 50%;
-  transition: opacity 0.3s ease, filter 0.3s ease;
+  transition: opacity 0.3s ease;
   pointer-events: none;
+  contain: strict;
 }
 
 /* Hover: pop up large */
@@ -574,8 +661,7 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   z-index: 50;
 }
 .reward-card-wrap:hover::after {
-  opacity: 0.7;
-  filter: blur(18px);
+  opacity: 0.65;
 }
 .reward-card-wrap:hover > .tcg-card {
   transform: translateY(-32px) scale(1.5) !important;
@@ -583,17 +669,18 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   filter: drop-shadow(0 16px 32px rgba(0,0,0,0.7));
 }
 
-/* Sparkle particles */
+/* Sparkle particles — only transform+opacity for GPU compositing */
 .reward-sparkle {
-  animation: sparkle-float 3.5s ease-in-out infinite;
+  animation: sparkle-float 4s ease-in-out infinite;
   pointer-events: none;
   opacity: 0;
+  contain: strict;
 }
 @keyframes sparkle-float {
   0%   { opacity: 0; transform: translateY(0) scale(0.5); }
-  12%  { opacity: 1; }
-  50%  { opacity: 0.5; transform: translateY(-28px) scale(1.4); }
-  88%  { opacity: 0.15; }
+  12%  { opacity: 0.9; }
+  50%  { opacity: 0.4; transform: translateY(-28px) scale(1.3); }
+  88%  { opacity: 0.1; }
   100% { opacity: 0; transform: translateY(-56px) scale(0.15); }
 }
 
@@ -606,4 +693,82 @@ button, .tap-target {
 /* ── Utility: hide on very small screens ──────── */
 @media (max-height: 600px) {
   .hide-short { display: none !important; }
+}
+
+/* ── Reward screen mobile fixes ──────────────── */
+@media (max-width: 375px) {
+  .reward-cards-row {
+    gap: clamp(8px, 3vw, 16px) !important;
+    padding: 16px 0 24px !important;
+  }
+  .reward-card-wrap:hover > .tcg-card {
+    transform: translateY(-24px) scale(1.3) !important;
+  }
+}
+@media (max-height: 600px) {
+  .reward-cards-row {
+    padding: 12px 0 20px !important;
+  }
+  .reward-card-wrap:hover > .tcg-card {
+    transform: translateY(-20px) scale(1.25) !important;
+  }
+}
+
+/* ── Overlay mobile compact ──────────────────── */
+@media (max-width: 375px) {
+  .overlay-scroll {
+    max-height: 55vh;
+    max-height: 55dvh;
+  }
+}
+
+/* ── Shop card wraps on small screens ─────────── */
+@media (max-width: 375px) {
+  .shop-card-wrap:hover {
+    transform: translateY(-14px) scale(1.2);
+  }
+}
+
+/* ── Map compact header on tiny screens ─────── */
+@media (max-width: 375px) {
+  .map-header-compact { font-size: 14px !important; }
+  .map-legend-item { font-size: 9px !important; }
+}
+
+/* ── Color picker mobile ────────────────────── */
+.color-picker-cell {
+  width: clamp(34px, 10vw, 44px);
+  height: clamp(34px, 10vw, 44px);
+  border-radius: 50%;
+  border: 3px solid #444;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.color-picker-cell:active {
+  transform: scale(0.9);
+}
+
+/* ── Game HUD responsive stat boxes ──────────── */
+@media (max-width: 375px) {
+  .game-hud .stat-box {
+    padding: 3px 6px !important;
+  }
+}
+
+/* ── Board cell font-size clamp for tiny screens */
+@media (max-width: 300px) {
+  .board-cell { font-size: 5px !important; }
+}
+
+/* ── Landscape phones: two-column layout hint ── */
+@media (max-height: 500px) and (orientation: landscape) {
+  .full-page {
+    gap: 8px;
+    padding: 8px;
+  }
+  .game-shell {
+    max-width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
 }

@@ -408,15 +408,15 @@ const cn = { display:"flex", alignItems:"center", justifyContent:"center" };
 // ═══════════════════════════════════════════════════════════
 
 const Overlay = ({ children }) => (
-  <div style={{ position:"fixed", inset:0, background:"#0a0a0fdd", ...cn, zIndex:100, backdropFilter:"blur(8px)", padding:"var(--pad)" }}>
-    <div style={{ ...box({borderRadius:16, padding:"clamp(16px,4vw,24px)", maxWidth:420, width:"100%", textAlign:"center"}) }}>{children}</div>
+  <div style={{ position:"fixed", inset:0, background:"#0a0a0fdd", ...cn, zIndex:100, backdropFilter:"blur(8px)", padding:"var(--pad)", paddingTop:`calc(var(--pad) + env(safe-area-inset-top, 0px))`, paddingBottom:`calc(var(--pad) + env(safe-area-inset-bottom, 0px))`, overflowY:"auto", WebkitOverflowScrolling:"touch" }}>
+    <div style={{ ...box({borderRadius:16, padding:"clamp(12px,3vw,24px)", maxWidth:420, width:"100%", textAlign:"center"}) }}>{children}</div>
   </div>
 );
 
 const Btn = ({ onClick, variant="primary", children, style={} }) => (
   <button onClick={onClick} style={{
-    padding:"12px 28px", borderRadius:8, border:"none", cursor:"pointer",
-    fontWeight:700, fontSize:14, color:T.bright, transition:"all .15s",
+    padding:"clamp(8px, 2.5vw, 12px) clamp(16px, 5vw, 28px)", borderRadius:8, border:"none", cursor:"pointer",
+    fontWeight:700, fontSize:"clamp(12px, 3.5vw, 14px)", color:T.bright, transition:"all .15s",
     background: variant==="danger"?T.danger:variant==="dim"?"#333":T.accent, ...style,
   }}>{children}</button>
 );
@@ -466,18 +466,20 @@ const CardView = ({ card, onClick, playable, compact, large, style: extraStyle }
   const w = large ? "clamp(120px, 28vw, 160px)" : "var(--tcg-w)";
   const artH = large ? "clamp(70px, 17vw, 100px)" : "var(--tcg-art-h)";
   const artFs = large ? "clamp(40px, 10vw, 56px)" : "var(--tcg-art-fs)";
-  const nameFs = large ? "clamp(13px, 3.2vw, 17px)" : 10;
-  const costFs = large ? "clamp(13px, 3.2vw, 17px)" : 11;
-  const descFs = large ? "clamp(10px, 2.5vw, 13px)" : 8;
+  const nameFs = large ? "clamp(13px, 3.2vw, 17px)" : "var(--fs-card-name, 10px)";
+  const costFs = large ? "clamp(13px, 3.2vw, 17px)" : "var(--fs-card-name, 11px)";
+  const descFs = large ? "clamp(10px, 2.5vw, 13px)" : "var(--fs-card-desc, 8px)";
   const rarFs = large ? "clamp(8px, 2vw, 11px)" : 7;
   const padTB = large ? "7px 10px" : "5px 8px";
   const descPad = large ? "6px 10px" : "4px 6px";
   const costPad = large ? "2px 8px" : "1px 6px";
   const borderR = large ? 14 : 10;
 
+  const h = large ? "clamp(186px, 44vw, 248px)" : "var(--tcg-h)";
+
   return (
     <div onClick={onClick} className={`tcg-card ${onClick?"card-hover":""}`} style={{
-      width: w, flexShrink: 0, cursor: onClick?"pointer":"default",
+      width: w, height: h, flexShrink: 0, cursor: onClick?"pointer":"default",
       opacity: playable===false ? 0.45 : 1,
       ...extraStyle,
     }}>
@@ -494,6 +496,7 @@ const CardView = ({ card, onClick, playable, compact, large, style: extraStyle }
           display: "flex", justifyContent: "space-between", alignItems: "center",
           padding: padTB, background: "#0d0d1a",
           borderBottom: `1px solid ${rarityColor}40`,
+          flexShrink: 0,
         }}>
           <span style={{ fontSize: nameFs, fontWeight: 800, color: T.bright, letterSpacing: 0.3,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{card.name}</span>
@@ -520,6 +523,8 @@ const CardView = ({ card, onClick, playable, compact, large, style: extraStyle }
           flex: 1, padding: descPad,
           fontSize: descFs, color: "#aaa", lineHeight: 1.3,
           display: "flex", alignItems: "center",
+          overflow: "hidden",
+          minHeight: 0,
         }}>
           <span>{card.desc}</span>
         </div>
@@ -529,6 +534,7 @@ const CardView = ({ card, onClick, playable, compact, large, style: extraStyle }
           padding: "2px 8px 4px", textAlign: "center",
           fontSize: rarFs, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1,
           color: rarityColor, borderTop: `1px solid ${rarityColor}25`,
+          flexShrink: 0,
         }}>
           {card.rarity}
         </div>
@@ -550,12 +556,21 @@ const CycleIndicator = ({ cycle }) => (
   </div>
 );
 
-const ColorPicker = ({ numColors, onPick }) => (
-  <div style={{ ...box({borderRadius:10,padding:"6px",marginBottom:"var(--gap)"}), display:"flex", gap:8, justifyContent:"center", flexWrap:"wrap" }}>
+const ColorPicker = ({ numColors, onPick, disabled }) => (
+  <div style={{
+    ...box({borderRadius:10,padding:"4px",marginBottom:"var(--gap)"}),
+    display:"flex", gap:"clamp(4px, 2vw, 8px)", justifyContent:"center", flexWrap:"wrap",
+    opacity: disabled ? 0.18 : 1,
+    pointerEvents: disabled ? "none" : "auto",
+    transition: "opacity 0.25s ease",
+    position: "relative", zIndex: 5,
+  }}>
     {COLORS.slice(0,numColors).map((c,i) => (
-      <div key={i} className="tap-target" onClick={()=>onPick(c)} style={{
-        width:40, height:40, borderRadius:"50%", background:c,
-        border:"3px solid #444", cursor:"pointer", boxShadow:`0 2px 8px ${c}44`, ...cn,
+      <div key={i} className="color-picker-cell tap-target" onClick={disabled ? undefined : ()=>onPick(c)} style={{
+        background: disabled ? "#333" : c,
+        boxShadow: disabled ? "none" : `0 2px 8px ${c}44`,
+        ...cn,
+        transition: "background 0.25s ease, box-shadow 0.25s ease",
       }} />
     ))}
   </div>
@@ -564,7 +579,7 @@ const ColorPicker = ({ numColors, onPick }) => (
 // ── MAP SCREEN ────────────────────────────────────────────
 const MapScreen = ({ state: s, dispatch }) => {
   const { mapData, mapLayer, mapPrevNode } = s;
-  const LAYER_H = 52, NODE_R = 18;
+  const LAYER_H = 52, NODE_R = 16;
   const totalH = mapData.length * LAYER_H + 30;
   const maxLi = mapData.length - 1;
   const scrollRef = useRef(null);
@@ -586,28 +601,28 @@ const MapScreen = ({ state: s, dispatch }) => {
   return (
     <div className="map-shell" style={{ background:T.bg, color:T.text }}>
       <AnimatedBg opacity={0.06} vignette={false} />
-        {/* Header */}
-        <div style={{ ...box({borderRadius:"var(--radius)",padding:"8px 12px",marginBottom:8,flexShrink:0}), display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <div style={{ fontSize:18, fontWeight:700, color:T.bright, letterSpacing:1 }}>CELLS</div>
-          <div style={{ display:"flex", gap:12, alignItems:"center" }}>
-            <span style={{ fontSize:13, color:T.gold, fontWeight:700 }}>Gold: {s.gold}</span>
-            <span style={{ fontSize:13, color:T.dim, fontWeight:700 }}>Score: {s.score}</span>
+        {/* Header — compact on mobile */}
+        <div style={{ ...box({borderRadius:"var(--radius)",padding:"6px 10px",marginBottom:6,flexShrink:0}), display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div style={{ fontSize:"clamp(13px, 4vw, 18px)", fontWeight:700, color:T.bright, letterSpacing:1 }}>CELLS</div>
+          <div style={{ display:"flex", gap:"clamp(6px, 2vw, 12px)", alignItems:"center" }}>
+            <span style={{ fontSize:"clamp(10px, 3vw, 13px)", color:T.gold, fontWeight:700 }}>Gold: {s.gold}</span>
+            <span style={{ fontSize:"clamp(10px, 3vw, 13px)", color:T.dim, fontWeight:700 }}>Score: {s.score}</span>
           </div>
         </div>
 
-        <div style={{ textAlign:"center", fontSize:15, fontWeight:700, color:T.bright, marginBottom:4, flexShrink:0 }}>Choose your path</div>
+        <div style={{ textAlign:"center", fontSize:"clamp(12px, 3.5vw, 15px)", fontWeight:700, color:T.bright, marginBottom:4, flexShrink:0 }}>Choose your path</div>
 
-        {/* Legend */}
-        <div style={{ display:"flex", gap:10, justifyContent:"center", marginBottom:8, flexWrap:"wrap", flexShrink:0 }}>
+        {/* Legend — wraps and shrinks on mobile */}
+        <div className="hide-short" style={{ display:"flex", gap:"clamp(4px, 2vw, 10px)", justifyContent:"center", marginBottom:6, flexWrap:"wrap", flexShrink:0 }}>
           {Object.entries(NODE_TYPES).map(([k,v]) => (
-            <div key={k} style={{ display:"flex", gap:3, alignItems:"center", fontSize:11, color:T.dim }}>
-              <span style={{ color:v.color, fontSize:13 }}>{v.icon}</span> {v.label}
+            <div key={k} className="map-legend-item" style={{ display:"flex", gap:2, alignItems:"center", fontSize:"clamp(8px, 2.5vw, 11px)", color:T.dim }}>
+              <span style={{ color:v.color, fontSize:"clamp(10px, 3vw, 13px)" }}>{v.icon}</span> {v.label}
             </div>
           ))}
         </div>
 
         {/* Deck link */}
-        <div style={{ display:"flex", justifyContent:"center", fontSize:11, color:T.dim, fontWeight:600, marginBottom:8, flexShrink:0 }}>
+        <div style={{ display:"flex", justifyContent:"center", fontSize:"clamp(9px, 2.5vw, 11px)", color:T.dim, fontWeight:600, marginBottom:6, flexShrink:0 }}>
           <span onClick={()=>dispatch({type:"VIEW_DECK"})} style={{ cursor:"pointer", textDecoration:"underline" }}>
             Deck: {s.deck.length + s.hand.length + s.discard.length}
           </span>
@@ -658,7 +673,7 @@ const MapScreen = ({ state: s, dispatch }) => {
                     stroke={isAvail?T.bright:isCurr?"#fff":nt.color} strokeWidth={isAvail?2.5:isCurr?2.5:2}
                     opacity={isPast?0.35:isAvail?1:isCurr?0.9:0.5} />
                   <text x={x} y={y+1} textAnchor="middle" dominantBaseline="central"
-                    fill={isPast?"#999":"#fff"} fontSize={14} fontWeight={700}
+                    fill={isPast?"#999":"#fff"} fontSize={13} fontWeight={700}
                     style={{ pointerEvents:"none" }}>
                     {nt.icon}
                   </text>
@@ -676,47 +691,47 @@ const BG_GRID = 8;
 const BG_PALETTE = COLORS.slice(0, 5);
 
 const AnimatedBg = ({ opacity = 0.12, vignette = true }) => {
-  const [grid, setGrid] = useState(() =>
-    Array.from({ length: BG_GRID * BG_GRID }, () => pick(BG_PALETTE))
-  );
-  const rafRef = useRef(null);
-  const lastTick = useRef(Date.now());
+  const gridRef = useRef(null);
 
   useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const cells = el.children;
     let running = true;
+    let last = Date.now();
     const tick = () => {
       if (!running) return;
       const now = Date.now();
-      if (now - lastTick.current > 120) {
-        lastTick.current = now;
-        setGrid(prev => {
-          const next = [...prev];
-          const count = 2 + Math.floor(Math.random() * 3);
-          for (let k = 0; k < count; k++) {
-            const idx = Math.floor(Math.random() * next.length);
-            next[idx] = pick(BG_PALETTE);
-          }
-          return next;
-        });
+      if (now - last > 150) {
+        last = now;
+        const count = 2 + Math.floor(Math.random() * 2);
+        for (let k = 0; k < count; k++) {
+          const idx = Math.floor(Math.random() * cells.length);
+          cells[idx].style.background = pick(BG_PALETTE);
+        }
       }
-      rafRef.current = requestAnimationFrame(tick);
+      requestAnimationFrame(tick);
     };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => { running = false; cancelAnimationFrame(rafRef.current); };
+    requestAnimationFrame(tick);
+    return () => { running = false; };
   }, []);
+
+  const initColors = useRef(
+    Array.from({ length: BG_GRID * BG_GRID }, () => pick(BG_PALETTE))
+  ).current;
 
   return (
     <>
-      <div style={{
+      <div ref={gridRef} style={{
         position: "fixed", inset: 0, display: "grid",
         gridTemplateColumns: `repeat(${BG_GRID}, 1fr)`,
         gap: 3, padding: 3, opacity, pointerEvents: "none", zIndex: 0,
-        alignContent: "center",
+        alignContent: "center", willChange: "contents",
       }}>
-        {grid.map((color, i) => (
+        {initColors.map((color, i) => (
           <div key={i} style={{
             background: color, borderRadius: 4,
-            transition: "background 0.8s ease",
+            transition: "background 1s ease",
             aspectRatio: "1",
           }} />
         ))}
@@ -937,10 +952,10 @@ const WinScreen = ({ state: s, dispatch }) => {
 };
 
 const RewardScreen = ({ state: s, dispatch }) => {
-  // Sparkle particles
-  const sparkles = useRef(Array.from({length:20}, (_,i) => ({
+  // Sparkle particles — reduced count, no box-shadow
+  const sparkles = useRef(Array.from({length:12}, (_,i) => ({
     left: `${5 + Math.random()*90}%`, top: `${5 + Math.random()*90}%`,
-    delay: `${(i * 0.25).toFixed(2)}s`, size: 2 + Math.random()*5,
+    delay: `${(i * 0.4).toFixed(2)}s`, size: 3 + Math.random()*4,
     color: pick(["#fff","#f1c40f","#3498db","#2ecc71","#e74c3c","#9b59b6"]),
   }))).current;
 
@@ -949,13 +964,14 @@ const RewardScreen = ({ state: s, dispatch }) => {
       {/* Animated bg behind */}
       <AnimatedBg opacity={0.15} vignette={false} />
 
-      {/* Sparkle particles */}
+      {/* Sparkle particles — GPU composited, no box-shadow */}
       {sparkles.map((sp, i) => (
         <div key={i} className="reward-sparkle" style={{
           position:"absolute", left:sp.left, top:sp.top,
           width:sp.size, height:sp.size, borderRadius:"50%",
-          background:sp.color, boxShadow:`0 0 ${sp.size+2}px ${sp.color}`,
+          background:sp.color, filter:`blur(${Math.round(sp.size*0.3)}px)`,
           animationDelay:sp.delay, zIndex:1,
+          willChange: "transform, opacity",
         }} />
       ))}
 
@@ -1041,9 +1057,9 @@ const ShopScreen = ({ state: s, dispatch }) => {
     <div className="map-shell" style={{ background:T.bg, color:T.text }}>
       <AnimatedBg opacity={0.06} vignette={false} />
       {/* Header */}
-      <div style={{ ...box({borderRadius:"var(--radius)",padding:"8px 12px",marginBottom:8,flexShrink:0}), display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <div style={{ fontSize:18, fontWeight:700, color:T.bright, letterSpacing:1 }}>SHOP</div>
-        <div style={{ fontSize:14, color:T.gold, fontWeight:700 }}>Gold: {s.gold}</div>
+      <div style={{ ...box({borderRadius:"var(--radius)",padding:"6px 10px",marginBottom:6,flexShrink:0}), display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div style={{ fontSize:"clamp(14px, 4vw, 18px)", fontWeight:700, color:T.bright, letterSpacing:1 }}>SHOP</div>
+        <div style={{ fontSize:"clamp(11px, 3vw, 14px)", color:T.gold, fontWeight:700 }}>Gold: {s.gold}</div>
       </div>
 
       <div className="map-scroll" style={{ padding:"0 4px" }}>
@@ -1331,14 +1347,14 @@ export default function CellsRoguelike() {
       {overlay}
 
       {/* ── Header ── */}
-      <div className="game-header" style={{ ...box({padding:"6px 12px",marginBottom:"var(--gap)"}), display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-          <span style={{ fontSize:16, fontWeight:700, color:T.bright, letterSpacing:1 }}>CELLS</span>
-          {s.hardMode && <span style={{ fontSize:9, fontWeight:800, color:T.danger, background:`${T.danger}20`, padding:"1px 5px", borderRadius:4, letterSpacing:0.5 }}>HARD</span>}
+      <div className="game-header" style={{ ...box({padding:"4px 10px",marginBottom:"var(--gap)"}), display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+          <span style={{ fontSize:"clamp(12px, 3.5vw, 16px)", fontWeight:700, color:T.bright, letterSpacing:1 }}>CELLS</span>
+          {s.hardMode && <span style={{ fontSize:"clamp(7px, 2vw, 9px)", fontWeight:800, color:T.danger, background:`${T.danger}20`, padding:"1px 4px", borderRadius:3, letterSpacing:0.5 }}>HARD</span>}
         </div>
-        <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-          <span style={{ fontSize:11, color:T.dim }}>Layer {s.mapLayer+1}/{MAP_LAYERS}</span>
-          {s.currentNodeType && <span style={{ fontSize:12, color:NODE_TYPES[s.currentNodeType]?.color }}>{NODE_TYPES[s.currentNodeType]?.icon}</span>}
+        <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+          <span style={{ fontSize:"clamp(9px, 2.5vw, 11px)", color:T.dim }}>Layer {s.mapLayer+1}/{MAP_LAYERS}</span>
+          {s.currentNodeType && <span style={{ fontSize:"clamp(10px, 3vw, 12px)", color:NODE_TYPES[s.currentNodeType]?.color }}>{NODE_TYPES[s.currentNodeType]?.icon}</span>}
         </div>
       </div>
 
@@ -1353,7 +1369,7 @@ export default function CellsRoguelike() {
         </div>
 
         {/* Info row */}
-        <div style={{ display:"flex", gap:10, justifyContent:"center", fontSize:10, color:T.dim, fontWeight:600 }}>
+        <div style={{ display:"flex", gap:"clamp(6px, 2vw, 10px)", justifyContent:"center", fontSize:"clamp(8px, 2.5vw, 10px)", color:T.dim, fontWeight:600 }}>
           <span>{sz}×{sz}</span>
           <span onClick={()=>dispatch({type:"VIEW_DECK"})} style={{ cursor:"pointer", textDecoration:"underline" }}>
             Deck: {s.deck.length+s.hand.length+s.discard.length}
@@ -1361,13 +1377,14 @@ export default function CellsRoguelike() {
           <span>Draw: {s.deck.length}</span>
         </div>
 
-        {/* Message */}
-        {(s.message || s.targeting) && (
-          <div style={{ ...box({borderRadius:8,padding:"6px 10px"}), textAlign:"center", fontSize:12, color:"#aaa" }}>
-            {s.message}
-            {s.targeting && <span onClick={()=>dispatch({type:"CANCEL_TARGET"})} style={{ marginLeft:8, color:T.danger, cursor:"pointer", fontSize:11 }}>Cancel</span>}
-          </div>
-        )}
+        {/* Message – always present to reserve layout space */}
+        <div style={{
+          ...box({borderRadius:8,padding:"4px 8px"}),
+          textAlign:"center", fontSize:"clamp(10px, 3vw, 12px)", color:"#aaa",
+          visibility: (s.message || s.targeting) ? "visible" : "hidden",
+        }}>
+          {s.message || "\u00A0"}
+        </div>
 
         {/* Cycle */}
         {s.colorCycle.length > 0 && <CycleIndicator cycle={s.colorCycle} />}
@@ -1397,10 +1414,10 @@ export default function CellsRoguelike() {
         </div>
       </div>
 
-      {/* ── Color picker (conditional) ── */}
-      {needsColorPick && <ColorPicker numColors={s.numColors} onPick={color=>dispatch({type:"PICK_COLOR",color})} />}
+      {/* ── Color picker (always present, greyed out when unavailable) ── */}
+      <ColorPicker numColors={s.numColors} onPick={color=>dispatch({type:"PICK_COLOR",color})} disabled={!needsColorPick} />
 
-      {/* ── Hand (horizontal scroll) ── */}
+      {/* ── Hand ── */}
       <div className="game-hand-area">
         <div className="game-hand">
           {s.hand.length ? s.hand.map((card,i) => {
@@ -1448,6 +1465,7 @@ export default function CellsRoguelike() {
       {/* ── Action buttons ── */}
       <div className="game-actions">
         <Btn variant="danger" onClick={()=>dispatch({type:"END_TURN"})}>End Turn</Btn>
+        {s.targeting && <Btn variant="dim" onClick={()=>dispatch({type:"CANCEL_TARGET"})}>Cancel</Btn>}
         <Btn variant="dim" onClick={()=>dispatch({type:"VIEW_DECK"})}>View Deck</Btn>
       </div>
     </div>
