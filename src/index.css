@@ -1,0 +1,609 @@
+/* ── Reset ────────────────────────────────────── */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+html, body, #root {
+  height: 100%; width: 100%;
+  overflow: hidden;          /* lock the viewport — game controls its own scroll */
+}
+
+body {
+  background: #0a0a0f;
+  color: #e0e0e0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  overscroll-behavior: none;
+}
+
+button { font-family: inherit; -webkit-appearance: none; appearance: none; }
+#root { user-select: none; -webkit-user-select: none; }
+
+/* ── CSS Variables (responsive) ───────────────── */
+:root {
+  /* Spacing */
+  --gap: 6px;
+  --pad: 8px;
+  --radius: 10px;
+
+  /* Board */
+  --board-max: min(85vw, 85vh - 320px, 420px);  /* fit between HUD and hand */
+  --cell-radius: 3px;
+  --cell-border: 2px;
+
+  /* Cards (legacy) */
+  --card-min-w: 88px;
+  --card-max-w: 108px;
+  --card-pad: 7px 9px;
+
+  /* TCG Cards */
+  --tcg-w: 80px;
+  --tcg-art-h: 44px;
+  --tcg-art-fs: 28px;
+  --hand-overlap: -12px;
+
+  /* Map */
+  --map-w: min(90vw, 360px);
+
+  /* Typography */
+  --fs-title: clamp(32px, 8vw, 48px);
+  --fs-stat-val: clamp(14px, 3.5vw, 18px);
+  --fs-stat-label: clamp(10px, 2.5vw, 13px);
+  --fs-card-name: 11px;
+  --fs-card-desc: 9px;
+
+  /* Touch */
+  --tap-min: 44px;
+}
+
+/* ── Tablet / Desktop ─────────────────────────── */
+@media (min-width: 600px) {
+  :root {
+    --gap: 8px;
+    --pad: 12px;
+    --board-max: min(75vw, 70vh, 480px);
+    --card-min-w: 100px;
+    --card-max-w: 130px;
+    --card-pad: 10px 12px;
+    --map-w: min(85vw, 440px);
+    --fs-card-name: 13px;
+    --fs-card-desc: 10px;
+    --tcg-w: 96px;
+    --tcg-art-h: 52px;
+    --tcg-art-fs: 32px;
+    --hand-overlap: -10px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --board-max: min(50vw, 65vh, 520px);
+    --map-w: min(70vw, 500px);
+    --tcg-w: 105px;
+    --tcg-art-h: 56px;
+    --tcg-art-fs: 36px;
+    --hand-overlap: -8px;
+  }
+}
+
+/* Small phones (SE, mini) */
+@media (max-width: 375px) {
+  :root {
+    --board-max: min(88vw, 70vh - 280px, 320px);
+    --card-min-w: 78px;
+    --card-max-w: 96px;
+    --card-pad: 5px 7px;
+    --fs-card-name: 10px;
+    --fs-card-desc: 8px;
+    --tcg-w: 68px;
+    --tcg-art-h: 36px;
+    --tcg-art-fs: 22px;
+    --hand-overlap: -16px;
+  }
+}
+
+/* Landscape phones */
+@media (max-height: 500px) and (orientation: landscape) {
+  :root {
+    --board-max: min(45vh, 40vw, 280px);
+    --gap: 4px;
+    --pad: 6px;
+  }
+}
+
+/* ── Layout classes ───────────────────────────── */
+.game-shell {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: var(--pad);
+  height: 100dvh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.game-header {
+  flex: 0 0 auto;
+}
+
+.game-hud {
+  flex: 0 0 auto;
+}
+
+.game-board-area {
+  flex: 1 1 auto;             /* board fills remaining space */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;              /* allow flex shrinking */
+  padding: var(--gap) 0;
+  overflow: hidden;
+}
+
+.game-board {
+  display: grid;
+  gap: 2px;
+  padding: 3px;
+  width: var(--board-max);
+  max-width: 100%;
+  aspect-ratio: 1;
+  max-height: 100%;           /* never overflow the flex area */
+  border-radius: var(--radius);
+  box-shadow: 0 0 30px rgba(52,152,219,0.08), 0 0 60px rgba(52,152,219,0.04);
+}
+
+/* Board glow when dragging a card over it */
+.game-board.board-drag-active {
+  box-shadow: 0 0 30px rgba(255,255,255,0.12), 0 0 60px rgba(52,152,219,0.15);
+  border-color: #ffffff22 !important;
+}
+
+/* ── Board cells: retro beveled style ──────────── */
+.board-cell {
+  background: var(--cell-color);
+  border-radius: var(--cell-radius);
+  cursor: pointer;
+  border: var(--cell-border) solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff8;
+  font-weight: 700;
+  position: relative;
+  transition: box-shadow 0.15s ease, border-color 0.12s ease, filter 0.12s ease;
+  /* Retro bevel: bright top-left edge, dark bottom-right edge */
+  box-shadow:
+    inset 2px 2px 0 rgba(255,255,255,0.25),
+    inset -2px -2px 0 rgba(0,0,0,0.3);
+}
+.board-cell:hover {
+  z-index: 2;
+  border-color: #fff8;
+  box-shadow:
+    inset 2px 2px 0 rgba(255,255,255,0.35),
+    inset -2px -2px 0 rgba(0,0,0,0.4),
+    0 0 12px var(--cell-color),
+    0 0 24px var(--cell-color);
+  filter: brightness(1.2);
+}
+.board-cell:active {
+  box-shadow:
+    inset -1px -1px 0 rgba(255,255,255,0.15),
+    inset 1px 1px 0 rgba(0,0,0,0.35),
+    0 0 8px var(--cell-color);
+  filter: brightness(0.9);
+}
+
+/* Highlighted cells (targeting) */
+.board-cell-lit {
+  border-color: #fff !important;
+  box-shadow:
+    inset 2px 2px 0 rgba(255,255,255,0.3),
+    inset -2px -2px 0 rgba(0,0,0,0.3),
+    0 0 8px var(--cell-color),
+    0 0 4px #fff8 !important;
+  animation: cell-pulse 0.8s ease-in-out infinite alternate;
+}
+@keyframes cell-pulse {
+  0%   { box-shadow: inset 2px 2px 0 rgba(255,255,255,0.3), inset -2px -2px 0 rgba(0,0,0,0.3), 0 0 6px var(--cell-color), 0 0 3px #fff6; }
+  100% { box-shadow: inset 2px 2px 0 rgba(255,255,255,0.35), inset -2px -2px 0 rgba(0,0,0,0.25), 0 0 14px var(--cell-color), 0 0 6px #fffa; }
+}
+
+/* Locked cells */
+.board-cell-locked {
+  border-color: #fff6 !important;
+}
+.board-cell-locked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--cell-radius);
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 3px,
+    rgba(0,0,0,0.12) 3px,
+    rgba(0,0,0,0.12) 5px
+  );
+  pointer-events: none;
+}
+
+/* Preview cells (drag targeting) */
+.board-cell-preview {
+  box-shadow:
+    inset 2px 2px 0 rgba(255,255,255,0.3),
+    inset -2px -2px 0 rgba(0,0,0,0.3),
+    0 0 10px #fff6,
+    inset 0 0 0 100px rgba(255,255,255,0.18) !important;
+  border-color: #fffa !important;
+  animation: preview-pulse 0.6s ease-in-out infinite alternate;
+}
+@keyframes preview-pulse {
+  0%   { box-shadow: inset 2px 2px 0 rgba(255,255,255,0.3), inset -2px -2px 0 rgba(0,0,0,0.3), 0 0 8px #fff4, inset 0 0 0 100px rgba(255,255,255,0.12); }
+  100% { box-shadow: inset 2px 2px 0 rgba(255,255,255,0.35), inset -2px -2px 0 rgba(0,0,0,0.25), 0 0 14px #fff8, inset 0 0 0 100px rgba(255,255,255,0.22); }
+}
+
+/* Center target cell during drag */
+.board-cell-target {
+  border-color: #fff !important;
+  box-shadow:
+    inset 2px 2px 0 rgba(255,255,255,0.4),
+    inset -2px -2px 0 rgba(0,0,0,0.3),
+    0 0 16px #fff8,
+    0 0 30px var(--cell-color) !important;
+}
+
+/* Cell color-change glow animation */
+.board-cell-changed {
+  animation: cell-color-glow 0.6s ease-out forwards;
+  z-index: 3;
+}
+@keyframes cell-color-glow {
+  0% {
+    filter: brightness(2.2) saturate(1.6);
+    box-shadow:
+      inset 2px 2px 0 rgba(255,255,255,0.5),
+      inset -2px -2px 0 rgba(0,0,0,0.15),
+      0 0 20px var(--cell-color),
+      0 0 40px var(--cell-color),
+      0 0 60px rgba(255,255,255,0.3);
+    transform: scale(1.08);
+  }
+  40% {
+    filter: brightness(1.5) saturate(1.3);
+    box-shadow:
+      inset 2px 2px 0 rgba(255,255,255,0.4),
+      inset -2px -2px 0 rgba(0,0,0,0.2),
+      0 0 14px var(--cell-color),
+      0 0 28px var(--cell-color),
+      0 0 4px rgba(255,255,255,0.15);
+    transform: scale(1.03);
+  }
+  100% {
+    filter: brightness(1) saturate(1);
+    box-shadow:
+      inset 2px 2px 0 rgba(255,255,255,0.25),
+      inset -2px -2px 0 rgba(0,0,0,0.3);
+    transform: scale(1);
+  }
+}
+
+/* Dragging card in hand fades */
+.hand-card-dragging {
+  animation: none !important;
+}
+
+/* Drag ghost animation */
+.drag-ghost {
+  animation: drag-float 1.5s ease-in-out infinite;
+}
+@keyframes drag-float {
+  0%, 100% { transform: translate(-50%, -60%) scale(1.2) rotate(-3deg); }
+  50%      { transform: translate(-50%, -63%) scale(1.22) rotate(-2deg); }
+}
+
+.game-hand-area {
+  flex: 0 0 auto;
+  overflow: visible;
+  padding: 4px 0 8px;
+}
+
+.game-hand {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  padding: 8px 0 0;
+  overflow: visible;
+  position: relative;
+}
+
+.hand-card {
+  margin: 0 var(--hand-overlap);
+  transition: transform 0.3s cubic-bezier(.34,1.56,.64,1), z-index 0s;
+  transform-origin: center bottom;
+  animation: card-bob 3s ease-in-out infinite;
+  animation-delay: var(--bob-delay, 0s);
+}
+
+@keyframes card-bob {
+  0%, 100% { margin-top: 0; }
+  50%      { margin-top: -5px; }
+}
+
+.hand-card:hover {
+  transform: translateY(-50px) scale(1.55) rotate(0deg) !important;
+  z-index: 50 !important;
+  animation: none;
+  filter: drop-shadow(0 12px 24px rgba(0,0,0,0.6));
+}
+
+.hand-card:active {
+  transform: translateY(-35px) scale(1.4) rotate(0deg) !important;
+  animation: none;
+}
+
+.game-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: var(--gap);
+  justify-content: center;
+  padding: var(--gap) 0;
+}
+
+/* ── Map layout ───────────────────────────────── */
+.map-shell {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: var(--pad);
+  height: 100dvh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.map-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  justify-content: center;
+  min-height: 0;
+}
+
+/* ── Overlay screens ──────────────────────────── */
+.overlay-scroll {
+  max-height: 70vh;
+  max-height: 70dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Full-screen pages (title, game over, victory) ── */
+.full-page {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: var(--pad);
+  height: 100dvh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+/* ── Title screen ────────────────────────────── */
+.title-screen {
+  max-width: 100% !important;    /* let the bg grid fill the viewport */
+  width: 100%;
+}
+
+@keyframes title-pulse {
+  0%, 100% { text-shadow: 0 0 40px #3498db44, 0 0 80px #3498db22, 0 2px 0 #111; }
+  50% { text-shadow: 0 0 60px #3498db66, 0 0 120px #3498db33, 0 2px 0 #111; }
+}
+
+.title-glow {
+  animation: title-pulse 3s ease-in-out infinite;
+}
+
+/* ── Retro arcade buttons ──────────────────────── */
+.retro-btn {
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  font-size: clamp(16px, 4vw, 21px);
+  font-weight: 900;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--retro-bg);
+  border: none;
+  border-bottom: 5px solid var(--retro-shadow);
+  border-right: 3px solid var(--retro-shadow);
+  border-radius: 4px;
+  padding: 14px 44px;
+  cursor: pointer;
+  position: relative;
+  text-shadow: 0 2px 0 rgba(0,0,0,0.4);
+  box-shadow:
+    0 6px 0 var(--retro-shadow),
+    0 8px 20px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.15);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  animation: retro-idle 2s ease-in-out infinite;
+}
+.retro-btn:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 8px 0 var(--retro-shadow),
+    0 12px 30px rgba(0,0,0,0.5),
+    inset 0 1px 0 rgba(255,255,255,0.15),
+    0 0 20px var(--retro-glow, #3498db)55;
+  animation: none;
+}
+.retro-btn:active {
+  transform: translateY(4px);
+  box-shadow:
+    0 2px 0 var(--retro-shadow),
+    0 3px 8px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.1);
+  border-bottom-width: 2px;
+  animation: none;
+}
+@keyframes retro-idle {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+
+.retro-btn-sm {
+  font-size: clamp(11px, 2.8vw, 14px);
+  letter-spacing: 2px;
+  padding: 10px 28px;
+  border-bottom-width: 4px;
+  border-right-width: 2px;
+  box-shadow:
+    0 4px 0 var(--retro-shadow),
+    0 6px 14px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.1);
+  animation: none;
+}
+.retro-btn-sm:hover {
+  box-shadow:
+    0 6px 0 var(--retro-shadow),
+    0 8px 20px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.1),
+    0 0 14px var(--retro-glow, #555)44;
+}
+.retro-btn-sm:active {
+  transform: translateY(3px);
+  box-shadow:
+    0 1px 0 var(--retro-shadow),
+    0 2px 6px rgba(0,0,0,0.3);
+  border-bottom-width: 1px;
+}
+
+/* ── Card hover animation (for list views, shop items etc) ── */
+.card-hover {
+  transition: all 0.2s ease;
+}
+.card-hover:hover {
+  border-color: #3498db !important;
+  box-shadow: 0 4px 16px rgba(52, 152, 219, 0.2), 0 2px 6px rgba(0,0,0,0.3);
+}
+
+/* ── TCG card base ─────────────────────────────── */
+.tcg-card {
+  transition: filter 0.2s ease, transform 0.25s cubic-bezier(.34,1.56,.64,1);
+}
+.tcg-card:hover {
+  filter: brightness(1.15);
+}
+
+/* ── Shop / overlay card hover ─────────────────── */
+.shop-card-wrap {
+  transition: transform 0.25s cubic-bezier(.34,1.56,.64,1), z-index 0s;
+  transform-origin: center bottom;
+  position: relative;
+  z-index: 1;
+}
+.shop-card-wrap:hover {
+  transform: translateY(-18px) scale(1.35);
+  z-index: 50;
+  filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
+}
+
+/* ── Reward screen ─────────────────────────────── */
+.reward-backdrop {
+  background: radial-gradient(ellipse at 50% 40%, #1a1a3a 0%, #0a0a0fee 60%, #0a0a0f 100%);
+  backdrop-filter: blur(10px);
+}
+.reward-title {
+  animation: reward-glow 2.5s ease-in-out infinite;
+}
+@keyframes reward-glow {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.3); }
+}
+
+/* Card float-in entrance */
+.reward-card-wrap {
+  opacity: 0;
+  transform: translateY(80px) scale(0.6) rotate(-6deg);
+  animation: reward-card-in 0.7s cubic-bezier(.34,1.56,.64,1) forwards;
+  animation-delay: var(--card-in-delay, 0s);
+  transform-origin: center bottom;
+  position: relative;
+  z-index: 1;
+  cursor: pointer;
+}
+@keyframes reward-card-in {
+  0%   { opacity: 0; transform: translateY(80px) scale(0.6) rotate(-6deg); }
+  60%  { opacity: 1; transform: translateY(-8px) scale(1.04) rotate(1deg); }
+  100% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+}
+
+/* Bob on inner card after entrance */
+.reward-card-wrap > .tcg-card {
+  animation: reward-bob 2.8s ease-in-out infinite;
+  animation-delay: var(--bob-delay, 0s);
+  transition: transform 0.3s cubic-bezier(.34,1.56,.64,1), filter 0.3s ease;
+}
+@keyframes reward-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+
+/* Rarity glow under each card */
+.reward-card-wrap::after {
+  content: "";
+  position: absolute;
+  bottom: -8px; left: 10%; right: 10%; height: 16px;
+  background: var(--rarity-color, #444);
+  filter: blur(12px);
+  opacity: 0.35;
+  border-radius: 50%;
+  transition: opacity 0.3s ease, filter 0.3s ease;
+  pointer-events: none;
+}
+
+/* Hover: pop up large */
+.reward-card-wrap:hover {
+  z-index: 50;
+}
+.reward-card-wrap:hover::after {
+  opacity: 0.7;
+  filter: blur(18px);
+}
+.reward-card-wrap:hover > .tcg-card {
+  transform: translateY(-32px) scale(1.5) !important;
+  animation: none;
+  filter: drop-shadow(0 16px 32px rgba(0,0,0,0.7));
+}
+
+/* Sparkle particles */
+.reward-sparkle {
+  animation: sparkle-float 3.5s ease-in-out infinite;
+  pointer-events: none;
+  opacity: 0;
+}
+@keyframes sparkle-float {
+  0%   { opacity: 0; transform: translateY(0) scale(0.5); }
+  12%  { opacity: 1; }
+  50%  { opacity: 0.5; transform: translateY(-28px) scale(1.4); }
+  88%  { opacity: 0.15; }
+  100% { opacity: 0; transform: translateY(-56px) scale(0.15); }
+}
+
+/* ── Button touch target enforcement ──────────── */
+button, .tap-target {
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
+}
+
+/* ── Utility: hide on very small screens ──────── */
+@media (max-height: 600px) {
+  .hide-short { display: none !important; }
+}
