@@ -600,7 +600,7 @@ const MapScreen = ({ state: s, dispatch }) => {
 
   return (
     <div className="map-shell" style={{ background:T.bg, color:T.text }}>
-      <AnimatedBg opacity={0.06} vignette={false} />
+      <AnimatedBg opacity={0.14} vignette={false} />
         {/* Header — compact on mobile */}
         <div style={{ ...box({borderRadius:"var(--radius)",padding:"6px 10px",marginBottom:6,flexShrink:0}), display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div style={{ fontSize:"clamp(13px, 4vw, 18px)", fontWeight:700, color:T.bright, letterSpacing:1 }}>CELLS</div>
@@ -687,7 +687,8 @@ const MapScreen = ({ state: s, dispatch }) => {
 };
 
 // ── Reusable animated background ─────────────────────────
-const BG_GRID = 8;
+const BG_COLS = 8;
+const BG_ROWS = 14;  // extra rows so square cells always fill tall screens
 const BG_PALETTE = COLORS.slice(0, 5);
 
 const AnimatedBg = ({ opacity = 0.12, vignette = true }) => {
@@ -717,16 +718,17 @@ const AnimatedBg = ({ opacity = 0.12, vignette = true }) => {
   }, []);
 
   const initColors = useRef(
-    Array.from({ length: BG_GRID * BG_GRID }, () => pick(BG_PALETTE))
+    Array.from({ length: BG_COLS * BG_ROWS }, () => pick(BG_PALETTE))
   ).current;
 
   return (
     <>
       <div ref={gridRef} style={{
         position: "fixed", inset: 0, display: "grid",
-        gridTemplateColumns: `repeat(${BG_GRID}, 1fr)`,
+        gridTemplateColumns: `repeat(${BG_COLS}, 1fr)`,
         gap: 3, padding: 3, opacity, pointerEvents: "none", zIndex: 0,
         alignContent: "center", willChange: "contents",
+        overflow: "hidden",
       }}>
         {initColors.map((color, i) => (
           <div key={i} style={{
@@ -766,7 +768,7 @@ const TitleScreen = ({ dispatch }) => {
     const isLast = tutStep === TUTORIAL_STEPS.length - 1;
     return (
       <div className="full-page title-screen" style={{ background: T.bg, color: T.text, position: "relative", overflow: "hidden" }}>
-        <AnimatedBg opacity={0.08} />
+        <AnimatedBg opacity={0.18} />
         <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:16, maxWidth:400, width:"100%", padding:"0 20px" }}>
           {/* Progress dots */}
           <div style={{ display:"flex", gap:8, marginBottom:8 }}>
@@ -818,7 +820,7 @@ const TitleScreen = ({ dispatch }) => {
 
   return (
     <div className="full-page title-screen" style={{ background: T.bg, color: T.text, position: "relative", overflow: "hidden" }}>
-      <AnimatedBg opacity={0.12} />
+      <AnimatedBg opacity={0.22} />
 
       {/* Content */}
       <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
@@ -911,7 +913,7 @@ const TitleScreen = ({ dispatch }) => {
 
 const GameOverScreen = ({ state: s, dispatch }) => (
   <div className="full-page" style={{ background:T.bg, color:T.text, position:"relative", overflow:"hidden" }}>
-    <AnimatedBg opacity={0.08} />
+    <AnimatedBg opacity={0.18} />
     <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:16 }}>
       <div style={{ fontSize:"clamp(32px, 8vw, 48px)", fontWeight:900, color:T.danger }}>RUN OVER</div>
       {s.hardMode && <div style={{ fontSize:13, fontWeight:800, color:T.danger, background:`${T.danger}20`, padding:"3px 12px", borderRadius:6 }}>HARD MODE</div>}
@@ -924,7 +926,7 @@ const GameOverScreen = ({ state: s, dispatch }) => (
 
 const VictoryScreen = ({ state: s, dispatch }) => (
   <div className="full-page" style={{ background:T.bg, color:T.text, position:"relative", overflow:"hidden" }}>
-    <AnimatedBg opacity={0.1} />
+    <AnimatedBg opacity={0.2} />
     <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:16 }}>
       <div style={{ fontSize:"clamp(36px, 10vw, 56px)", fontWeight:900, color:T.gold, textShadow:`0 0 40px ${T.gold}44` }}>VICTORY!</div>
       {s.hardMode && <div style={{ fontSize:14, fontWeight:800, color:T.danger, background:`${T.danger}20`, padding:"4px 14px", borderRadius:6, letterSpacing:1 }}>HARD MODE CONQUERED</div>}
@@ -962,7 +964,7 @@ const RewardScreen = ({ state: s, dispatch }) => {
   return (
     <div className="reward-backdrop" style={{ position:"fixed", inset:0, zIndex:100, ...cn, padding:"var(--pad)" }}>
       {/* Animated bg behind */}
-      <AnimatedBg opacity={0.15} vignette={false} />
+      <AnimatedBg opacity={0.25} vignette={false} />
 
       {/* Sparkle particles — GPU composited, no box-shadow */}
       {sparkles.map((sp, i) => (
@@ -1055,7 +1057,7 @@ const ShopScreen = ({ state: s, dispatch }) => {
   const allCards = [...s.deck, ...s.discard, ...s.hand];
   return (
     <div className="map-shell" style={{ background:T.bg, color:T.text }}>
-      <AnimatedBg opacity={0.06} vignette={false} />
+      <AnimatedBg opacity={0.14} vignette={false} />
       {/* Header */}
       <div style={{ ...box({borderRadius:"var(--radius)",padding:"6px 10px",marginBottom:6,flexShrink:0}), display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div style={{ fontSize:"clamp(14px, 4vw, 18px)", fontWeight:700, color:T.bright, letterSpacing:1 }}>SHOP</div>
@@ -1343,7 +1345,7 @@ export default function CellsRoguelike() {
 
   return (
     <div className="game-shell" style={{ background:T.bg, color:T.text }}>
-      <AnimatedBg opacity={0.05} vignette={false} />
+      <AnimatedBg opacity={0.12} vignette={false} />
       {overlay}
 
       {/* ── Header ── */}

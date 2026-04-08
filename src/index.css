@@ -172,7 +172,8 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   height: 100vh;   /* fallback for browsers without dvh */
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
+  clip-path: inset(0 -100vw);
 }
 @supports (height: 100dvh) {
   .game-shell { height: 100dvh; }
@@ -366,8 +367,8 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   min-height: 0;
   position: relative;
   overflow: visible;
-  /* Clip bottom at container edge, allow unlimited upward overflow for hover */
-  clip-path: inset(-200% -20px 0 -20px);
+  /* Clip bottom at container edge, allow upward + side overflow for hover + fan */
+  clip-path: inset(-200% -100vw 0 -100vw);
 }
 
 .game-hand {
