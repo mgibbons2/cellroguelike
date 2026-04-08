@@ -1141,13 +1141,22 @@ const ShopScreen = ({ state: s, dispatch }) => {
 const DeckViewScreen = ({ state: s, dispatch }) => {
   const all = [...s.hand,...s.deck,...s.discard];
   return (
-    <Overlay>
-      <div style={{ fontSize:18, fontWeight:800, color:T.bright, marginBottom:12 }}>DECK ({all.length})</div>
-      <div className="overlay-scroll" style={{ display:"flex", gap:10, justifyContent:"center", flexWrap:"wrap", overflow:"visible", padding:"12px 0" }}>
-        {all.map((card,i) => <div key={i} className="shop-card-wrap"><CardView card={card} /></div>)}
+    <div style={{ position:"fixed", inset:0, background:"#0a0a0fdd", zIndex:100, backdropFilter:"blur(8px)",
+      display:"flex", flexDirection:"column", alignItems:"center", overflow:"hidden",
+      padding:"var(--pad)", paddingTop:`calc(var(--pad) + env(safe-area-inset-top, 0px))`, paddingBottom:`calc(var(--pad) + env(safe-area-inset-bottom, 0px))`,
+    }}>
+      <div style={{ ...box({borderRadius:16, padding:"clamp(12px,3vw,24px)", maxWidth:"clamp(420px, 80vw, 900px)", width:"100%", textAlign:"center"}),
+        display:"flex", flexDirection:"column", minHeight:0, overflow:"hidden", flex:"1 1 0",
+      }}>
+        <div style={{ fontSize:18, fontWeight:800, color:T.bright, marginBottom:12, flexShrink:0 }}>DECK ({all.length})</div>
+        <div style={{ display:"flex", gap:10, justifyContent:"center", flexWrap:"wrap", padding:"12px 0", overflowY:"auto", WebkitOverflowScrolling:"touch", minHeight:0, flex:"1 1 auto" }}>
+          {all.map((card,i) => <div key={i} className="shop-card-wrap"><CardView card={card} /></div>)}
+        </div>
+        <div style={{ flexShrink:0, paddingTop:12 }}>
+          <Btn variant="dim" onClick={()=>dispatch({type:"CLOSE_DECK"})}>Close</Btn>
+        </div>
       </div>
-      <Btn variant="dim" onClick={()=>dispatch({type:"CLOSE_DECK"})} style={{marginTop:12}}>Close</Btn>
-    </Overlay>
+    </div>
   );
 };
 
@@ -1344,9 +1353,10 @@ export default function CellsRoguelike() {
     s.phase===P.DECK_VIEW? <DeckViewScreen state={s} dispatch={dispatch} /> : null;
 
   return (
+    <>
+    {overlay}
     <div className="game-shell" style={{ background:T.bg, color:T.text }}>
       <AnimatedBg opacity={0.12} vignette={false} />
-      {overlay}
 
       {/* ── Header ── */}
       <div className="game-header" style={{ ...box({padding:"4px 10px",marginBottom:"var(--gap)"}), display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -1471,5 +1481,6 @@ export default function CellsRoguelike() {
         <Btn variant="dim" onClick={()=>dispatch({type:"VIEW_DECK"})}>View Deck</Btn>
       </div>
     </div>
+    </>
   );
 }
