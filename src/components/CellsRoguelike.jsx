@@ -1,4 +1,4 @@
-import { useReducer, useState, useEffect, useCallback, useRef } from "react";
+import { useReducer, useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
 
 // ═══════════════════════════════════════════════════════════
 // CONSTANTS & THEME
@@ -779,6 +779,43 @@ const CARD_ART = {
 const RARITY_BORDER = { starter:"#444", common:"#555", uncommon:T.accent, rare:T.danger };
 const RARITY_GLOW = { starter:"none", common:"none", uncommon:`0 0 8px ${T.accent}44`, rare:`0 0 12px ${T.danger}44` };
 
+// Auto-shrink text to fit its container via CSS scale transform
+const FitText = ({ children, style, maxLines = 1, minScale = 0.5, ...props }) => {
+  const outerRef = useRef(null);
+  const innerRef = useRef(null);
+  const fit = useCallback(() => {
+    const outer = outerRef.current;
+    const inner = innerRef.current;
+    if (!outer || !inner) return;
+    // Reset to natural size
+    inner.style.transform = "scale(1)";
+    // Force reflow so measurements are fresh
+    void inner.offsetWidth;
+    const ow = outer.offsetWidth;
+    const oh = outer.offsetHeight;
+    const iw = inner.scrollWidth;
+    const ih = inner.scrollHeight;
+    if (ow <= 0 || iw <= 0) return;
+    const sx = ow / iw;
+    const sy = oh > 0 && ih > 0 ? oh / ih : 1;
+    const s = Math.max(minScale, Math.min(1, sx, sy));
+    inner.style.transform = `scale(${s})`;
+  }, [minScale]);
+  useEffect(() => { fit(); });
+  return (
+    <div ref={outerRef} style={{ overflow: "hidden", position: "relative", ...style }} {...props}>
+      <div ref={innerRef} style={{
+        whiteSpace: maxLines === 1 ? "nowrap" : "normal",
+        width: maxLines === 1 ? "max-content" : "100%",
+        transformOrigin: "top left",
+        display: "inline-block",
+      }}>
+        {children}
+      </div>
+    </div>
+  );
+};
+
 const CardView = ({ card, onClick, playable, compact, large, style: extraStyle }) => {
   if (compact) {
     // Compact list view for overlays
@@ -808,7 +845,7 @@ const CardView = ({ card, onClick, playable, compact, large, style: extraStyle }
   const artH = large ? "clamp(70px, 17vw, 100px)" : "var(--tcg-art-h)";
   const artFs = large ? "clamp(40px, 10vw, 56px)" : "var(--tcg-art-fs)";
   const nameFs = large ? "clamp(13px, 3.2vw, 17px)" : "var(--fs-card-name, 10px)";
-  const costFs = large ? "clamp(13px, 3.2vw, 17px)" : "var(--fs-card-name, 11px)";
+  const costFs = large ? "clamp(13px, 3.2vw, 17px)" : "max(calc(var(--tcg-w) * 0.18), 8px)";
   const descFs = large ? "clamp(10px, 2.5vw, 13px)" : "var(--fs-card-desc, 8px)";
   const rarFs = large ? "clamp(8px, 2vw, 11px)" : "max(calc(var(--tcg-w) * 0.09), 6px)";
   const padTB = large ? "7px 10px" : "clamp(2px, 0.4dvh, 5px) clamp(4px, 0.8dvh, 8px)";
@@ -839,12 +876,14 @@ const CardView = ({ card, onClick, playable, compact, large, style: extraStyle }
           borderBottom: `1px solid ${rarityColor}40`,
           flexShrink: 0,
         }}>
-          <span style={{ fontSize: nameFs, fontWeight: 800, color: T.bright, letterSpacing: 0.3,
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{card.name}</span>
+          <FitText style={{ flex: 1, minWidth: 0 }} maxLines={1} minScale={0.5}>
+            <span style={{ fontSize: nameFs, fontWeight: 800, color: T.bright, letterSpacing: 0.3 }}>{card.name}</span>
+          </FitText>
           <span style={{
             fontSize: costFs, fontWeight: 800, color: "#111",
-            background: T.gold, borderRadius: 10, padding: costPad, marginLeft: 4,
-            minWidth: "clamp(14px, calc(var(--tcg-w) * 0.25), 20px)", textAlign: "center", lineHeight: 1.3,
+            background: T.gold, borderRadius: "calc(var(--tcg-w) * 0.12)", padding: costPad, marginLeft: "calc(var(--tcg-w) * 0.04)",
+            minWidth: "calc(var(--tcg-w) * 0.22)", textAlign: "center", lineHeight: 1.3,
+            flexShrink: 0,
           }}>{card.cost}</span>
         </div>
 
@@ -860,15 +899,14 @@ const CardView = ({ card, onClick, playable, compact, large, style: extraStyle }
         </div>
 
         {/* Description */}
-        <div style={{
+        <FitText maxLines={3} minScale={0.55} style={{
           flex: 1, padding: descPad,
           fontSize: descFs, color: "#aaa", lineHeight: 1.3,
-          display: "flex", alignItems: "center",
-          overflow: "hidden",
+          display: "flex", alignItems: "flex-start",
           minHeight: 0,
         }}>
-          <span>{card.desc}</span>
-        </div>
+          {card.desc}
+        </FitText>
 
         {/* Bottom bar: rarity */}
         <div style={{
@@ -1097,6 +1135,7 @@ const TUTORIAL_STEPS = [
   { title:"Tap to Cycle", icon:"🎨", text:"Tap any cell on the board to cycle its color (and all connected cells) to the next color in the cycle." },
   { title:"Play Cards", icon:"🃏", text:"Drag cards from your hand to play powerful effects — paint areas, swap colors, snipe cells, and more. Each card costs energy." },
   { title:"Locked Cells", icon:"🔒", text:"Some cells are locked and can't be recolored. Surround a locked cell with its own color to unlock it, or use a Purify card." },
+  { title:"Defeat Monsters", icon:"👾", text:"Monsters roam the board and mess up your colors each turn. Match the color chain shown beneath them to defeat them and earn gold. You can't tap their cell — use cards instead!" },
   { title:"Clear the Board", icon:"✨", text:"Make every cell the same color before you run out of turns. Fewer turns used = more bonus points and gold." },
   { title:"Explore the Map", icon:"🗺", text:"Choose your path through 13 layers. Fight puzzles, visit shops, collect relics, and face the final boss." },
   { title:"Build Your Deck", icon:"📦", text:"Earn new cards after each puzzle. Visit shops to buy cards and relics, or remove weak cards to streamline your deck." },
