@@ -60,15 +60,15 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   --fs-title: clamp(32px, 8vw, 48px);
   --fs-stat-val: clamp(11px, min(3.5vw, 2.8dvh), 18px);
   --fs-stat-label: clamp(7px, min(2.5vw, 1.8dvh), 13px);
-  --fs-card-name: max(calc(var(--tcg-w) * 0.14), 8px);
-  --fs-card-desc: max(calc(var(--tcg-w) * 0.11), 7px);
+  --fs-card-name: max(calc(var(--tcg-w) * 0.18), 8px);
+  --fs-card-desc: max(calc(var(--tcg-w) * 0.14), 7px);
 
   /* Touch – scales down on short viewports */
   --tap-min: clamp(28px, min(10vw, 6dvh), 44px);
 
-  /* Hand hover – proportional to viewport height so cards never overlap the board */
-  --hand-hover-y: clamp(-24px, -2.5dvh, -4px);
-  --hand-hover-scale: 1.25;
+  /* Hand hover – proportional to card size so hover auto-scales with --tcg-w */
+  --hand-hover-y: max(calc(var(--tcg-w) * -0.12), -24px);
+  --hand-hover-scale: 1.15;
 }
 
 /* ── Small phones (SE, mini, Galaxy Fold folded) ─ */
@@ -83,8 +83,6 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
     --tcg-w: clamp(36px, min(20vw, 10dvh), 66px);
     --hand-overlap: -16px;
     --map-w: min(96vw, 300px);
-    --hand-hover-y: clamp(-20px, -2.5dvh, -4px);
-    --hand-hover-scale: 1.2;
     --cell-bevel: 2.5px;
     --cell-lift: 2px;
   }
@@ -99,8 +97,6 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
     --tcg-w: clamp(34px, min(22vw, 9dvh), 56px);
     --hand-overlap: -20px;
     --map-w: 96vw;
-    --hand-hover-y: clamp(-16px, -2dvh, -4px);
-    --hand-hover-scale: 1.15;
     --cell-bevel: 2px;
     --cell-lift: 1.5px;
   }
@@ -110,8 +106,6 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
 @media (max-height: 700px) {
   :root {
     --board-max: min(88vw, calc(100dvh - 400px), 360px);
-    --hand-hover-y: clamp(-20px, -2.5dvh, -4px);
-    --hand-hover-scale: 1.2;
   }
 }
 
@@ -121,8 +115,6 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
     --board-max: min(80vw, calc(100dvh - 360px), 300px);
     --gap: 3px;
     --pad: 4px;
-    --hand-hover-y: clamp(-14px, -2dvh, -4px);
-    --hand-hover-scale: 1.1;
   }
 }
 
@@ -138,8 +130,6 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
     --map-w: min(85vw, 440px);
     --tcg-w: clamp(48px, min(16vw, 9dvh), 96px);
     --hand-overlap: -10px;
-    --hand-hover-y: clamp(-16px, -2dvh, -6px);
-    --hand-hover-scale: 1.15;
     --cell-bevel: 1.5px;
     --cell-lift: 1.5px;
   }
@@ -150,8 +140,6 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
     --tcg-w: clamp(38px, min(12vw, 10dvh), 72px);
     --gap: 4px;
     --pad: 6px;
-    --hand-hover-y: clamp(-14px, -2dvh, -4px);
-    --hand-hover-scale: 1.1;
   }
 }
 /* ── Foldables open / tall tablets (600px+ wide, 800px+ tall) ── */
@@ -168,8 +156,6 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
     --map-w: min(70vw, 500px);
     --tcg-w: clamp(64px, min(14vw, 14dvh), 130px);
     --hand-overlap: -6px;
-    --hand-hover-y: clamp(-20px, -2.5dvh, -8px);
-    --hand-hover-scale: 1.2;
     --cell-bevel: 1.5px;
     --cell-lift: 1.5px;
   }
@@ -181,7 +167,7 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
     --board-max: min(42vh, 38vw, 260px);
     --gap: 3px;
     --pad: 4px;
-    --hand-hover-y: clamp(-8px, -1.5dvh, -2px);
+    --hand-hover-y: max(calc(var(--tcg-w) * -0.1), -8px);
     --hand-hover-scale: 1.05;
     --cell-bevel: 1.5px;
     --cell-lift: 1px;
