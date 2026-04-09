@@ -763,7 +763,7 @@ const Btn = ({ onClick, variant="primary", children, style={} }) => (
 );
 
 const Stat = ({ label, value, color }) => (
-  <div style={{ ...box({borderRadius:8,padding:"4px 10px",textAlign:"center",flex:"1 1 0",minWidth:0}), fontSize:"var(--fs-stat-label)", fontWeight:600 }}>
+  <div style={{ ...box({borderRadius:8,padding:"clamp(1px, 0.5dvh, 4px) clamp(4px, 1.2dvh, 10px)",textAlign:"center",flex:"1 1 0",minWidth:0}), fontSize:"var(--fs-stat-label)", fontWeight:600 }}>
     <div style={{ color, whiteSpace:"nowrap" }}>{label}</div>
     <div style={{ fontSize:"var(--fs-stat-val)", color:T.bright, whiteSpace:"nowrap" }}>{value}</div>
   </div>
@@ -810,10 +810,10 @@ const CardView = ({ card, onClick, playable, compact, large, style: extraStyle }
   const nameFs = large ? "clamp(13px, 3.2vw, 17px)" : "var(--fs-card-name, 10px)";
   const costFs = large ? "clamp(13px, 3.2vw, 17px)" : "var(--fs-card-name, 11px)";
   const descFs = large ? "clamp(10px, 2.5vw, 13px)" : "var(--fs-card-desc, 8px)";
-  const rarFs = large ? "clamp(8px, 2vw, 11px)" : 7;
-  const padTB = large ? "7px 10px" : "5px 8px";
-  const descPad = large ? "6px 10px" : "4px 6px";
-  const costPad = large ? "2px 8px" : "1px 6px";
+  const rarFs = large ? "clamp(8px, 2vw, 11px)" : "max(calc(var(--tcg-w) * 0.09), 6px)";
+  const padTB = large ? "7px 10px" : "clamp(2px, 0.4dvh, 5px) clamp(4px, 0.8dvh, 8px)";
+  const descPad = large ? "6px 10px" : "clamp(2px, 0.3dvh, 4px) clamp(3px, 0.5dvh, 6px)";
+  const costPad = large ? "2px 8px" : "clamp(0px, 0.15dvh, 1px) clamp(3px, 0.5dvh, 6px)";
   const borderR = large ? 14 : 10;
 
   const h = large ? "clamp(186px, 44vw, 248px)" : "var(--tcg-h)";
@@ -844,7 +844,7 @@ const CardView = ({ card, onClick, playable, compact, large, style: extraStyle }
           <span style={{
             fontSize: costFs, fontWeight: 800, color: "#111",
             background: T.gold, borderRadius: 10, padding: costPad, marginLeft: 4,
-            minWidth: 20, textAlign: "center", lineHeight: 1.3,
+            minWidth: "clamp(14px, calc(var(--tcg-w) * 0.25), 20px)", textAlign: "center", lineHeight: 1.3,
           }}>{card.cost}</span>
         </div>
 
@@ -872,7 +872,7 @@ const CardView = ({ card, onClick, playable, compact, large, style: extraStyle }
 
         {/* Bottom bar: rarity */}
         <div style={{
-          padding: "2px 8px 4px", textAlign: "center",
+          padding: "clamp(1px, 0.2dvh, 2px) 8px clamp(2px, 0.3dvh, 4px)", textAlign: "center",
           fontSize: rarFs, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1,
           color: rarityColor, borderTop: `1px solid ${rarityColor}25`,
           flexShrink: 0,
@@ -899,7 +899,7 @@ const CycleIndicator = ({ cycle }) => (
 
 const ColorPicker = ({ numColors, onPick, disabled }) => (
   <div style={{
-    ...box({borderRadius:10,padding:"clamp(3px, 0.8vw, 8px)",marginBottom:"var(--gap)"}),
+    ...box({borderRadius:10,padding:"clamp(2px, min(0.8vw, 0.5dvh), 8px)",marginBottom:"var(--gap)"}),
     display:"flex", gap:"clamp(4px, min(2vw, 1.2vh), 10px)", justifyContent:"center", flexWrap:"wrap",
     opacity: disabled ? 0.18 : 1,
     pointerEvents: disabled ? "none" : "auto",
@@ -1378,20 +1378,33 @@ const LevelUpScreen = ({ state: s, dispatch }) => (
 const RemoveScreen = ({ state: s, dispatch }) => {
   const all = [...s.deck,...s.discard,...s.hand];
   return (
-    <Overlay>
-      <div style={{ fontSize:18, fontWeight:800, color:T.warn, marginBottom:2 }}>
-        {s.currentNodeType==="rest" ? "REST STOP" : "TRIM YOUR DECK"}
+    <div style={{ position:"fixed", inset:0, background:"radial-gradient(ellipse at 50% 30%, #141428ee 0%, #0a0a0ffa 60%)",
+      zIndex:100, display:"flex", flexDirection:"column", alignItems:"center", overflow:"hidden",
+      padding:"var(--pad)", paddingTop:`calc(var(--pad) + env(safe-area-inset-top, 0px))`, paddingBottom:`calc(var(--pad) + env(safe-area-inset-bottom, 0px))`,
+    }}>
+      <div style={{ ...box({borderRadius:16, padding:"clamp(10px,3vw,24px)", maxWidth:"clamp(320px, 92vw, 960px)", width:"100%", textAlign:"center"}),
+        display:"flex", flexDirection:"column", minHeight:0, overflow:"hidden", flex:"1 1 0",
+      }}>
+        <div style={{ fontSize:"clamp(16px, 3.5vw, 20px)", fontWeight:800, color:T.warn, marginBottom:2, flexShrink:0 }}>
+          {s.currentNodeType==="rest" ? "REST STOP" : "TRIM YOUR DECK"}
+        </div>
+        <div style={{ fontSize:"clamp(10px, 2.5vw, 13px)", color:T.dim, marginBottom:10, flexShrink:0 }}>
+          {s.currentNodeType==="rest" ? "Take a breather. Remove a card to sharpen your deck." : "Choose a card to remove."}
+        </div>
+        <div className="deck-scroll" style={{ minHeight:0, flex:"1 1 auto" }}>
+          <div className="deck-grid">
+            {all.map((card,i) => (
+              <div key={i} className="deck-card-wrap" onClick={()=>dispatch({type:"REMOVE_CARD",idx:i})} style={{ cursor:"pointer" }}>
+                <CardView card={card} style={{ width:"var(--deck-card-w)", height:"calc(var(--deck-card-w) * 1.5)" }} />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ flexShrink:0, paddingTop:12 }}>
+          <Btn variant="dim" onClick={()=>dispatch({type:"SKIP_REMOVE"})}>Skip</Btn>
+        </div>
       </div>
-      <div style={{ fontSize:11, color:T.dim, marginBottom:10 }}>
-        {s.currentNodeType==="rest" ? "Take a breather. Remove a card to sharpen your deck." : "Choose a card to remove."}
-      </div>
-      <div style={{ maxHeight:"min(55vh, 360px)", overflowY:"auto", WebkitOverflowScrolling:"touch", display:"flex", flexDirection:"column", gap:4, padding:"4px 0" }}>
-        {all.map((card,i) => (
-          <CardView key={i} card={card} compact onClick={()=>dispatch({type:"REMOVE_CARD",idx:i})} />
-        ))}
-      </div>
-      <Btn variant="dim" onClick={()=>dispatch({type:"SKIP_REMOVE"})} style={{marginTop:10}}>Skip</Btn>
-    </Overlay>
+    </div>
   );
 };
 
@@ -1815,12 +1828,19 @@ export default function CellsRoguelike() {
       // Find which board cell is under cursor
       if (boardRef.current) {
         const boardRect = boardRef.current.getBoundingClientRect();
-        const relX = touch.clientX - boardRect.left;
-        const relY = touch.clientY - boardRect.top;
-        if (relX >= 0 && relX < boardRect.width && relY >= 0 && relY < boardRect.height) {
+        const style = getComputedStyle(boardRef.current);
+        const padL = parseFloat(style.paddingLeft) || 0;
+        const padT = parseFloat(style.paddingTop) || 0;
+        const padR = parseFloat(style.paddingRight) || 0;
+        const padB = parseFloat(style.paddingBottom) || 0;
+        const innerW = boardRect.width - padL - padR;
+        const innerH = boardRect.height - padT - padB;
+        const relX = touch.clientX - boardRect.left - padL;
+        const relY = touch.clientY - boardRect.top - padT;
+        if (relX >= 0 && relX < innerW && relY >= 0 && relY < innerH) {
           const bsz = s.board?.length || 5;
-          const col = Math.floor(relX / (boardRect.width / bsz));
-          const row = Math.floor(relY / (boardRect.height / bsz));
+          const col = Math.floor(relX / (innerW / bsz));
+          const row = Math.floor(relY / (innerH / bsz));
           if (row >= 0 && row < bsz && col >= 0 && col < bsz) {
             const newHover = { r: row, c: col };
             hoverCellRef.current = newHover;
@@ -1837,12 +1857,19 @@ export default function CellsRoguelike() {
         const touch = e.touches ? e.changedTouches[0] : e;
         if (touch) {
           const boardRect = boardRef.current.getBoundingClientRect();
-          const relX = touch.clientX - boardRect.left;
-          const relY = touch.clientY - boardRect.top;
-          if (relX >= 0 && relX < boardRect.width && relY >= 0 && relY < boardRect.height) {
+          const style = getComputedStyle(boardRef.current);
+          const padL = parseFloat(style.paddingLeft) || 0;
+          const padT = parseFloat(style.paddingTop) || 0;
+          const padR = parseFloat(style.paddingRight) || 0;
+          const padB = parseFloat(style.paddingBottom) || 0;
+          const innerW = boardRect.width - padL - padR;
+          const innerH = boardRect.height - padT - padB;
+          const relX = touch.clientX - boardRect.left - padL;
+          const relY = touch.clientY - boardRect.top - padT;
+          if (relX >= 0 && relX < innerW && relY >= 0 && relY < innerH) {
             const bsz = boardRef.current.children.length ? Math.round(Math.sqrt(boardRef.current.children.length)) : 5;
-            const col = Math.floor(relX / (boardRect.width / bsz));
-            const row = Math.floor(relY / (boardRect.height / bsz));
+            const col = Math.floor(relX / (innerW / bsz));
+            const row = Math.floor(relY / (innerH / bsz));
             if (row >= 0 && row < bsz && col >= 0 && col < bsz) {
               curHover = { r: row, c: col };
             }
@@ -1900,7 +1927,7 @@ export default function CellsRoguelike() {
       <AnimatedBg opacity={0.12} vignette={false} />
 
       {/* ── Header ── */}
-      <div className="game-header" style={{ ...box({padding:"4px 10px",marginBottom:"var(--gap)"}), display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+      <div className="game-header" style={{ ...box({padding:"clamp(2px, 0.5dvh, 4px) 10px",marginBottom:"var(--gap)"}), display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div style={{ display:"flex", alignItems:"center", gap:4 }}>
           <span style={{ fontSize:"clamp(12px, 3.5vw, 16px)", fontWeight:700, color:T.bright, letterSpacing:1 }}>CELLS</span>
           {s.hardMode && <span style={{ fontSize:"clamp(7px, 2vw, 9px)", fontWeight:800, color:T.danger, background:`${T.danger}20`, padding:"1px 4px", borderRadius:3, letterSpacing:0.5 }}>HARD</span>}
@@ -1930,10 +1957,10 @@ export default function CellsRoguelike() {
           <span>Draw: {s.deck.length}</span>
         </div>
 
-        {/* Message – always present to reserve layout space */}
-        <div style={{
-          ...box({borderRadius:8,padding:"4px 8px"}),
-          textAlign:"center", fontSize:"clamp(10px, 3vw, 12px)",
+        {/* Message – always present to reserve layout space, hidden on very short screens */}
+        <div className="game-message" style={{
+          ...box({borderRadius:8,padding:"clamp(1px, 0.5dvh, 4px) 8px"}),
+          textAlign:"center", fontSize:"clamp(8px, min(3vw, 1.8dvh), 12px)",
           color: s.enemyTurnPhase ? "#ff8888" : "#aaa",
           fontWeight: s.enemyTurnPhase ? 700 : 400,
           visibility: (s.message || s.targeting || s.enemyTurnPhase) ? "visible" : "hidden",
