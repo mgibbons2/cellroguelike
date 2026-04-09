@@ -55,10 +55,21 @@ const generateBoard = (size, numColors, lockedCount = 0) => {
   const colorCycle = shuffle(COLORS.slice(0, numColors));
   const board = Array.from({ length: size }, () => Array.from({ length: size }, () => pick(colorCycle)));
   const locked = Array.from({ length: size }, () => Array(size).fill(false));
-  let placed = 0;
-  while (placed < lockedCount) {
+  let placed = 0, attempts = 0;
+  while (placed < lockedCount && attempts < size * size * 10) {
+    attempts++;
     const r = Math.floor(Math.random()*size), c = Math.floor(Math.random()*size);
-    if (!locked[r][c]) { locked[r][c] = true; placed++; }
+    if (locked[r][c]) continue;
+    // Ensure minimum 2 spaces from any other lock (Manhattan distance > 2)
+    let tooClose = false;
+    for (let dr = -2; dr <= 2 && !tooClose; dr++) {
+      for (let dc = -2; dc <= 2 && !tooClose; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const nr = r + dr, nc = c + dc;
+        if (inB(nr, nc, size) && locked[nr][nc] && (Math.abs(dr) + Math.abs(dc)) <= 2) tooClose = true;
+      }
+    }
+    if (!tooClose) { locked[r][c] = true; placed++; }
   }
   return { board, locked, colorCycle };
 };
@@ -87,9 +98,10 @@ const cascadeEffect = (board, locked, { cell, color }) => {
   for (const key of flood) { const [r,c]=key.split(",").map(Number); for (const [dr,dc] of DIRS) { const nr=r+dr,nc=c+dc; if(inB(nr,nc,sz)) expanded.add(`${nr},${nc}`); } }
   return paintCells(board, locked, expanded, color);
 };
-const swapColors = (board, locked, { color, color2 }) => {
-  const sz = board.length, b = cloneBoard(board);
-  for (let r=0;r<sz;r++) for (let c=0;c<sz;c++) { if(locked[r][c]) continue; if(b[r][c]===color) b[r][c]=color2; else if(b[r][c]===color2) b[r][c]=color; }
+const swapCells = (board, locked, { cell, cell2 }) => {
+  const b = cloneBoard(board);
+  const [r1,c1] = cell, [r2,c2] = cell2;
+  if (!locked[r1][c1] && !locked[r2][c2]) { const tmp = b[r1][c1]; b[r1][c1] = b[r2][c2]; b[r2][c2] = tmp; }
   return b;
 };
 const drainColor = (board, locked, { color, color2 }) => {
@@ -113,7 +125,7 @@ const tsunamiEffect = (board, locked, { color }) => drainColor(board, locked, { 
 const CARDS = {
   flood_fill:     { name:"Flood Fill",     cost:1, rarity:"starter",   target:"cell+color",  effect:floodEffect,     desc:"Connected same-color cells become chosen color." },
   paint:          { name:"Paint",          cost:1, rarity:"starter",   target:"cell+color",  effect:paintArea(0),    desc:"Change one cell to any color." },
-  color_swap:     { name:"Color Swap",     cost:2, rarity:"starter",   target:"2color",      effect:swapColors,      desc:"Swap all cells of two colors." },
+  color_swap:     { name:"Color Swap",     cost:2, rarity:"starter",   target:"2cell",       effect:swapCells,       desc:"Swap the colors of two cells." },
   row_wash:       { name:"Row Wash",       cost:2, rarity:"starter",   target:"row+color",   effect:rowEffect,       desc:"Paint an entire row one color." },
   col_wash:       { name:"Column Wash",    cost:2, rarity:"starter",   target:"col+color",   effect:colEffect,       desc:"Paint an entire column one color." },
   snipe:          { name:"Snipe",          cost:0, rarity:"starter",   target:"cell+color",  effect:paintArea(0),    desc:"Change one cell. Free and surgical." },
@@ -125,7 +137,7 @@ const CARDS = {
   cross_wash:     { name:"Cross Wash",     cost:2, rarity:"uncommon",  target:"cell+color",  effect:crossEffect,     desc:"Paint a + shape through a cell." },
   diagonal_slash: { name:"Diagonal Slash", cost:2, rarity:"uncommon",  target:"cell+color",  effect:diagonalEffect,  desc:"Paint both diagonals through a cell." },
   battery:        { name:"Battery",        cost:0, rarity:"uncommon",  target:"none",        special:"battery",      desc:"Gain +2 energy this turn." },
-  mirror:         { name:"Mirror",         cost:1, rarity:"uncommon",  target:"none",        special:"mirror",       desc:"Replay the last card you played." },
+  mirror:         { name:"Mirror",         cost:1, rarity:"uncommon",  target:"none",        special:"mirror",       desc:"Replay the last card's effect with a new target." },
   purify:         { name:"Purify",         cost:1, rarity:"uncommon",  target:"none",        special:"purify",       desc:"Unlock all locked cells." },
   color_drain:    { name:"Color Drain",    cost:3, rarity:"rare",      target:"2color",      effect:drainColor,      desc:"Convert all of one color to another." },
   mega_bomb:      { name:"Mega Bomb",      cost:3, rarity:"rare",      target:"cell+color",  effect:paintArea(2),    desc:"Paint a 5×5 area one color." },
@@ -409,14 +421,32 @@ const reducer = (s, a) => {
           case "overtime":  { const {deck,discard:d,drawn}=drawFrom(s.deck,base.discard,2); return {...base,deck,discard:d,hand:[...base.hand,...drawn],message:"+2 Cards drawn!"}; }
           case "mirror": {
             if (!s.lastPlayed?.card?.effect) return {...s,message:"Nothing to mirror!"};
-            const nb=s.lastPlayed.card.effect(s.board,s.locked,s.lastPlayed.args);
-            return afterCardPlayed({...s,energy:s.energy+card.cost},a.idx,nb,s.lastPlayed.args);
+            const mirroredCard = s.lastPlayed.card;
+            const mirrorTarget = mirroredCard.target;
+            // If the mirrored card needs targeting, enter targeting mode with mirror info
+            if (mirrorTarget && mirrorTarget !== "none") {
+              const steps={"cell+color":"cell","2color":"color1","2cell":"cell1","row+color":"row","col+color":"col","color":"color_final"};
+              const step=steps[mirrorTarget];
+              const needsP=step==="color1"||step==="color_final";
+              // Remove mirror from hand and deduct its cost, but enter targeting for the mirrored card
+              return { ...s, hand, discard, energy: s.energy-card.cost,
+                targeting:{cardIdx:-1, step, mirrorCard:mirroredCard},
+                highlight:new Set(),
+                message:`Mirror → ${mirroredCard.name}: ${step==="cell1"?"Select the first cell":needsP?"Pick a color":`Select a ${step} on the board`}` };
+            }
+            // No targeting needed — apply immediately
+            const nb=mirroredCard.effect(s.board,s.locked,{});
+            return checkWin({...s, hand, discard, energy:s.energy-card.cost,
+              targeting:null, highlight:new Set(),
+              lastPlayed:{card:mirroredCard, args:{}}, message:`Mirrored ${mirroredCard.name}!`
+            }, nb);
           }
         }
       }
-      const steps={"cell+color":"cell","2color":"color1","row+color":"row","col+color":"col","color":"color_final"};
+      const steps={"cell+color":"cell","2color":"color1","2cell":"cell1","row+color":"row","col+color":"col","color":"color_final"};
       const step=steps[card.target]; const needsP=step==="color1"||step==="color_final";
-      return { ...s, targeting:{cardIdx:a.idx,step}, highlight:new Set(), message:needsP?"Pick a color":`Select a ${step} on the board` };
+      const stepMsg = step==="cell1" ? "Select the first cell" : needsP ? "Pick a color" : `Select a ${step} on the board`;
+      return { ...s, targeting:{cardIdx:a.idx,step}, highlight:new Set(), message:stepMsg };
     }
 
     case "CANCEL_TARGET": return { ...s, targeting:null, highlight:new Set(), message:"" };
@@ -426,9 +456,18 @@ const reducer = (s, a) => {
       if (s.targeting) {
         // If this click came from a drag release for a different card, ignore it
         if (a.fromCard !== undefined && a.fromCard !== s.targeting.cardIdx) return s;
-        const {step, cardIdx}=s.targeting;
-        const targetCard = s.hand[cardIdx];
+        const {step, cardIdx, mirrorCard}=s.targeting;
+        const targetCard = mirrorCard || s.hand[cardIdx];
         if(step==="cell") return {...s,targeting:{...s.targeting,step:"color_final",cell:[r,c]},highlight:computeHighlight("cell",s.board,r,c,targetCard),message:"Now pick a color"};
+        if(step==="cell1") { const hl=new Set([`${r},${c}`]); return {...s,targeting:{...s.targeting,step:"cell2",cell:[r,c]},highlight:hl,message:"Now select the second cell"}; }
+        if(step==="cell2") {
+          const args = { cell:s.targeting.cell, cell2:[r,c] };
+          if (mirrorCard) {
+            const nb = mirrorCard.effect(s.board,s.locked,args);
+            return checkWin({...s, targeting:null, highlight:new Set(), lastPlayed:{card:mirrorCard, args}, message:`Mirrored ${mirrorCard.name}!`}, nb);
+          }
+          return afterCardPlayed(s,cardIdx,targetCard.effect(s.board,s.locked,args),args);
+        }
         if(step==="row")  return {...s,targeting:{...s.targeting,step:"color_final",row:r},highlight:computeHighlight("row",s.board,r,c,targetCard),message:"Now pick a color"};
         if(step==="col")  return {...s,targeting:{...s.targeting,step:"color_final",col:c},highlight:computeHighlight("col",s.board,r,c,targetCard),message:"Now pick a color"};
         return s;
@@ -442,9 +481,16 @@ const reducer = (s, a) => {
 
     case "PICK_COLOR": {
       if(!s.targeting) return s;
-      const {step,cardIdx}=s.targeting, card=s.hand[cardIdx];
+      const {step,cardIdx,mirrorCard}=s.targeting;
+      const card = mirrorCard || s.hand[cardIdx];
       if(step==="color1") return {...s,targeting:{...s.targeting,step:"color2",color1:a.color},message:"Pick the second color"};
       let args; if(step==="color2") args={color:s.targeting.color1,color2:a.color}; else args={color:a.color,cell:s.targeting.cell,row:s.targeting.row,col:s.targeting.col};
+      if (mirrorCard) {
+        // Mirror: card already removed from hand, just apply effect
+        const nb = mirrorCard.effect(s.board,s.locked,args);
+        return checkWin({...s, targeting:null, highlight:new Set(),
+          lastPlayed:{card:mirrorCard, args}, message:`Mirrored ${mirrorCard.name}!`}, nb);
+      }
       return afterCardPlayed(s,cardIdx,card.effect(s.board,s.locked,args),args);
     }
     default: return s;
@@ -1248,6 +1294,8 @@ const getCardPreviewCells = (card, r, c, board) => {
         if (inB(r+dr,c+dc,sz)) cells.add(`${r+dr},${c+dc}`);
       }
     }
+  } else if (target === "2cell") {
+    cells.add(`${r},${c}`);
   } else if (target === "row+color") {
     for (let i=0;i<sz;i++) cells.add(`${r},${i}`);
   } else if (target === "col+color") {
@@ -1374,7 +1422,7 @@ export default function CellsRoguelike() {
       }
       if (curDrag && curHover) {
         const card = handRef.current[curDrag.idx];
-        if (card && !card.special && ["cell+color","row+color","col+color"].includes(card.target)) {
+        if (card && !card.special && ["cell+color","row+color","col+color","2cell"].includes(card.target)) {
           clearTimeout(pendingClickTimeout.current);
           dispatch({ type: "SELECT_CARD", idx: curDrag.idx });
           const hr = curHover.r, hc = curHover.c;
@@ -1483,7 +1531,7 @@ export default function CellsRoguelike() {
                 style={{
                   "--cell-color": color,
                 }}
-              >{isLocked && <span style={{ fontSize:"clamp(8px, min(2.5vw, 2.5vh), 16px)", lineHeight:1 }}>🔒</span>}</div>
+              >{isLocked && <span style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"clamp(6px, min(2vw, 2vh), 14px)", lineHeight:1, pointerEvents:"none" }}>🔒</span>}</div>
             );
           }))}
         </div>

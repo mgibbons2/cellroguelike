@@ -252,6 +252,8 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
   color: #fff8;
   font-weight: 700;
   position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
   transition: box-shadow 0.12s ease, border-color 0.1s ease, filter 0.12s ease, transform 0.1s ease;
   /* Retro bevel: hard highlight top-left, deep shadow bottom-right + lift */
   box-shadow:
