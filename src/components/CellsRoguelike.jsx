@@ -146,6 +146,200 @@ const CARDS = {
 const STARTER_DECK = ["flood_fill","flood_fill","flood_fill","paint","paint","color_swap","row_wash","col_wash","energize","snipe"];
 const makeCard = id => ({ ...CARDS[id], id, uid: uid() });
 
+// ═══════════════════════════════════════════════════════════
+// ENEMY DEFINITIONS
+// ═══════════════════════════════════════════════════════════
+const ENEMY_ABILITIES = {
+  row_paint:    { name:"Row Paint",   icon:"🎨", desc:"Paints a random row a random color",
+    exec: (board, locked, enemy, colorCycle) => { const sz=board.length, b=cloneBoard(board), row=enemy.r, color=pick(colorCycle); for(let c=0;c<sz;c++) if(!locked[row][c]) b[row][c]=color; return b; },
+    preview: (enemy, sz) => { const cells=[]; for(let c=0;c<sz;c++) cells.push(`${enemy.r},${c}`); return cells; },
+  },
+  col_paint:    { name:"Col Paint",   icon:"🖌", desc:"Paints a random column a random color",
+    exec: (board, locked, enemy, colorCycle) => { const sz=board.length, b=cloneBoard(board), col=enemy.c, color=pick(colorCycle); for(let r=0;r<sz;r++) if(!locked[r][col]) b[r][col]=color; return b; },
+    preview: (enemy, sz) => { const cells=[]; for(let r=0;r<sz;r++) cells.push(`${r},${enemy.c}`); return cells; },
+  },
+  spread:       { name:"Spread",      icon:"🟢", desc:"Paints adjacent cells a random color",
+    exec: (board, locked, enemy, colorCycle) => { const sz=board.length, b=cloneBoard(board), color=pick(colorCycle); for(const [dr,dc] of DIRS){ const nr=enemy.r+dr,nc=enemy.c+dc; if(inB(nr,nc,sz)&&!locked[nr][nc]) b[nr][nc]=color; } return b; },
+    preview: (enemy, sz) => { const cells=[]; for(const [dr,dc] of DIRS){ const nr=enemy.r+dr,nc=enemy.c+dc; if(inB(nr,nc,sz)) cells.push(`${nr},${nc}`); } return cells; },
+  },
+  scramble:     { name:"Scramble",    icon:"🎲", desc:"Randomizes colors of nearby cells",
+    exec: (board, locked, enemy, colorCycle) => { const sz=board.length, b=cloneBoard(board); for(const [dr,dc] of ALL_DIRS){ const nr=enemy.r+dr,nc=enemy.c+dc; if(inB(nr,nc,sz)&&!locked[nr][nc]) b[nr][nc]=pick(colorCycle); } return b; },
+    preview: (enemy, sz) => { const cells=[]; for(const [dr,dc] of ALL_DIRS){ const nr=enemy.r+dr,nc=enemy.c+dc; if(inB(nr,nc,sz)) cells.push(`${nr},${nc}`); } return cells; },
+  },
+  freeze:       { name:"Freeze",      icon:"🧊", desc:"Locks a random nearby cell",
+    exec: (board, locked, enemy) => { const sz=board.length, targets=[]; for(const [dr,dc] of DIRS){ const nr=enemy.r+dr,nc=enemy.c+dc; if(inB(nr,nc,sz)&&!locked[nr][nc]) targets.push([nr,nc]); } if(targets.length){ const [r,c]=pick(targets); const nl=locked.map(r=>[...r]); nl[r][c]=true; return { board, locked:nl }; } return null; },
+    preview: (enemy, sz) => { const cells=[]; for(const [dr,dc] of DIRS){ const nr=enemy.r+dr,nc=enemy.c+dc; if(inB(nr,nc,sz)) cells.push(`${nr},${nc}`); } return cells; },
+    modifiesLocked: true,
+  },
+  shift_paint:  { name:"Shift Paint", icon:"👣", desc:"Paints its trail when moving",
+    exec: (board, locked, enemy, colorCycle) => { const b=cloneBoard(board); if(enemy._prevR!==undefined && !locked[enemy._prevR][enemy._prevC]) b[enemy._prevR][enemy._prevC]=pick(colorCycle); return b; },
+    preview: (enemy) => enemy._prevR!==undefined ? [`${enemy._prevR},${enemy._prevC}`] : [],
+  },
+};
+
+const ENEMY_DEFS = {
+  // Normal (1 ability, chain length 1)
+  goblin:    { name:"Goblin",    sprite:"goblin",    abilities:["row_paint"],          chainLen:1 },
+  slime:     { name:"Slime",     sprite:"slime",     abilities:["spread"],             chainLen:1 },
+  trickster: { name:"Trickster", sprite:"trickster",  abilities:["scramble"],            chainLen:1 },
+  sprite_e:  { name:"Sprite",    sprite:"sprite",    abilities:["col_paint"],           chainLen:1 },
+  blob:      { name:"Blob",      sprite:"blob",      abilities:["shift_paint"],         chainLen:1 },
+  // Elite (2 abilities, chain length 2-3)
+  frost_mage:{ name:"Frost Mage",sprite:"frost_mage",abilities:["freeze","spread"],     chainLen:2 },
+  brute:     { name:"Brute",     sprite:"brute",     abilities:["row_paint","scramble"], chainLen:2 },
+  warden:    { name:"Warden",    sprite:"warden",    abilities:["freeze","col_paint"],   chainLen:3 },
+  // Boss (2 abilities, chain length 3-4)
+  overlord:  { name:"Overlord",  sprite:"overlord",  abilities:["scramble","freeze"],    chainLen:3 },
+  destroyer: { name:"Destroyer", sprite:"destroyer",  abilities:["row_paint","col_paint"],chainLen:4 },
+};
+
+const NORMAL_ENEMIES = ["goblin","slime","trickster","sprite_e","blob"];
+const ELITE_ENEMIES = ["frost_mage","brute","warden"];
+const BOSS_ENEMIES = ["overlord","destroyer"];
+
+const spawnEnemies = (board, locked, layer, nodeType, colorCycle) => {
+  const sz = board.length;
+  // Determine count: starts at 1, scales up
+  let count = 1;
+  if (nodeType === "boss") count = 1;
+  else if (nodeType === "elite") count = layer >= 6 ? 2 : 1;
+  else count = layer >= 8 ? 2 : 1;
+  if (count === 0) return [];
+
+  const pool = nodeType === "boss" ? BOSS_ENEMIES : nodeType === "elite" ? ELITE_ENEMIES : NORMAL_ENEMIES;
+  const enemies = [];
+  const occupied = new Set();
+  // Avoid edges for better gameplay
+  for (let i = 0; i < count; i++) {
+    let attempts = 0, r, c;
+    do {
+      r = 1 + Math.floor(Math.random() * (sz - 2));
+      c = 1 + Math.floor(Math.random() * (sz - 2));
+      attempts++;
+    } while ((occupied.has(`${r},${c}`) || locked[r][c]) && attempts < 50);
+    if (attempts >= 50) continue;
+    occupied.add(`${r},${c}`);
+    const defId = pick(pool);
+    const def = ENEMY_DEFS[defId];
+    // Build color chain from the cycle
+    const chain = [];
+    const available = colorCycle.filter(co => co !== board[r][c]);
+    for (let j = 0; j < def.chainLen; j++) chain.push(pick(available.length ? available : colorCycle));
+    enemies.push({ id: uid(), defId, r, c, chain, chainIdx: 0, turnCooldown: 0 });
+  }
+  return enemies;
+};
+
+const moveEnemy = (enemy, board, locked, enemies) => {
+  const sz = board.length;
+  const occupied = new Set(enemies.map(e => `${e.r},${e.c}`));
+  const dirs = shuffle([...DIRS]);
+  for (const [dr, dc] of dirs) {
+    const nr = enemy.r + dr, nc = enemy.c + dc;
+    if (inB(nr, nc, sz) && !locked[nr][nc] && !occupied.has(`${nr},${nc}`)) {
+      return { ...enemy, r: nr, c: nc, _prevR: enemy.r, _prevC: enemy.c };
+    }
+  }
+  return { ...enemy, _prevR: undefined, _prevC: undefined }; // stuck
+};
+
+// Split enemy turn into movement and abilities for animation
+const processEnemyMove = (s) => {
+  if (!s.enemies || s.enemies.length === 0) return s;
+  let enemies = [...s.enemies];
+  enemies = enemies.map(e => { const moved = moveEnemy(e, s.board, s.locked, enemies); return { ...moved, _spawning: false }; });
+  return { ...s, enemies, enemyTurnPhase: "moving" };
+};
+
+const processEnemyAbilities = (s) => {
+  if (!s.enemies || s.enemies.length === 0) return s;
+  let board = cloneBoard(s.board);
+  let locked = s.locked;
+  const enemies = s.enemies;
+  const affectedCells = new Set(); // track cells changed by abilities
+
+  for (let i = 0; i < enemies.length; i++) {
+    const e = enemies[i];
+    const def = ENEMY_DEFS[e.defId];
+    const abilId = def.abilities[s.turn % def.abilities.length];
+    const abil = ENEMY_ABILITIES[abilId];
+    // Collect preview cells for visual flash
+    if (abil.preview) {
+      const preview = abil.preview(e, board.length);
+      for (const cell of preview) affectedCells.add(cell);
+    }
+    if (abil.modifiesLocked) {
+      const result = abil.exec(board, locked, e, s.colorCycle);
+      if (result) { board = result.board || board; locked = result.locked || locked; }
+    } else {
+      board = abil.exec(board, locked, e, s.colorCycle);
+    }
+  }
+
+  return { ...s, board, locked, enemyTurnPhase: "ability", _enemyAffectedCells: affectedCells };
+};
+
+// Spawn a reinforcement enemy mid-puzzle
+const spawnReinforcement = (s) => {
+  const { board, locked, enemies, colorCycle, currentNodeType, mapLayer } = s;
+  if (!board || !enemies) return s;
+  const sz = board.length;
+  // Determine max enemies for this node type
+  const maxEnemies = currentNodeType === "boss" ? 3 : currentNodeType === "elite" ? 3 : 2;
+  if (enemies.length >= maxEnemies) return s;
+  // Spawn interval: every 3 turns normally, every 2 for elite/boss
+  const interval = (currentNodeType === "elite" || currentNodeType === "boss") ? 2 : 3;
+  if (s.turn < interval || s.turn % interval !== 0) return s;
+  const pool = currentNodeType === "boss" ? BOSS_ENEMIES : currentNodeType === "elite" ? ELITE_ENEMIES : NORMAL_ENEMIES;
+  const occupied = new Set(enemies.map(e => `${e.r},${e.c}`));
+  let attempts = 0, r, c;
+  do {
+    r = 1 + Math.floor(Math.random() * (sz - 2));
+    c = 1 + Math.floor(Math.random() * (sz - 2));
+    attempts++;
+  } while ((occupied.has(`${r},${c}`) || locked[r][c]) && attempts < 50);
+  if (attempts >= 50) return s;
+  const defId = pick(pool);
+  const def = ENEMY_DEFS[defId];
+  const chain = [];
+  const available = colorCycle.filter(co => co !== board[r][c]);
+  for (let j = 0; j < def.chainLen; j++) chain.push(pick(available.length ? available : colorCycle));
+  const newEnemy = { id: uid(), defId, r, c, chain, chainIdx: 0, turnCooldown: 0, _spawning: true };
+  return { ...s, enemies: [...enemies, newEnemy], message: `A ${def.name} appeared!` };
+};
+
+const finishEnemyTurn = (s) => {
+  const afterSpawn = spawnReinforcement(s);
+  const { deck, discard, drawn } = drawFrom(afterSpawn.deck, [...afterSpawn.discard, ...afterSpawn.hand], afterSpawn.handSize);
+  return { ...afterSpawn, deck, discard, hand: drawn, energy: afterSpawn.maxEnergy, turn: afterSpawn.turn+1, taps: MAX_TAPS, targeting: null, highlight: new Set(), enemyTurnPhase: null, _enemyAffectedCells: null };
+};
+
+const checkEnemyDefeat = (s) => {
+  if (!s.enemies || s.enemies.length === 0) return s;
+  let gold = s.gold, enemies = [], message = s.message;
+  for (const e of s.enemies) {
+    const cellColor = s.board[e.r][e.c];
+    if (e.chainIdx < e.chain.length && cellColor === e.chain[e.chainIdx]) {
+      // Color matches the next step in the chain — advance!
+      const next = { ...e, chainIdx: e.chainIdx + 1, _lastChainColor: cellColor };
+      if (next.chainIdx >= next.chain.length) {
+        // Defeated!
+        const reward = 10 + Math.floor(Math.random() * 15);
+        gold += reward;
+        message = `Defeated ${ENEMY_DEFS[e.defId].name}! +${reward}g`;
+      } else {
+        enemies.push(next);
+      }
+    } else if (e.chainIdx > 0 && cellColor !== e._lastChainColor) {
+      // Cell color was actively changed away from the last matched color — chain broken
+      enemies.push({ ...e, chainIdx: 0, _lastChainColor: undefined });
+    } else {
+      enemies.push(e);
+    }
+  }
+  return { ...s, enemies, gold, message };
+};
+
 const rollRewards = (layer, count = 3, guaranteeRare = false) => {
   const pool = Object.entries(CARDS).filter(([, c]) => c.rarity !== "starter");
   const w = { common: 10, uncommon: layer >= 4 ? 8 : 3, rare: layer >= 6 ? 6 : 1 };
@@ -262,6 +456,7 @@ const initState = () => ({
   targeting: null, highlight: new Set(), message: "",
   lastPlayed: null, rewards: [], currentNodeType: null,
   shopCards: [], shopRelics: [],
+  enemies: [], enemyTurnPhase: null, _enemyAffectedCells: null,
 });
 
 const drawFrom = (deck, discard, count) => {
@@ -281,11 +476,12 @@ const buildPuzzle = (s, layer, nodeType) => {
   const tp = MAX_TAPS + (hasRelic(s,"tap_ring") ? 1 : 0) + (hasRelic(s,"lucky_coin") ? 1 : 0);
   const all = shuffle([...s.deck, ...s.hand, ...s.discard]);
   const hand = all.splice(0, hs);
+  const enemies = spawnEnemies(board, locked, layer, nodeType, colorCycle);
   return {
     ...s, phase: P.PLAY, board, locked, colorCycle, boardSize: cfg.size,
     numColors: cfg.numColors, maxTurns: mt, currentNodeType: nodeType,
     deck: all, hand, discard: [], energy: me, maxEnergy: me,
-    turn: 1, taps: tp,
+    turn: 1, taps: tp, enemies,
     targeting: null, highlight: new Set(), message: "", lastPlayed: null,
   };
 };
@@ -315,13 +511,15 @@ const autoUnlock = (board, locked) => {
 
 const checkWin = (s, newBoard) => {
   const newLocked = autoUnlock(newBoard, s.locked);
-  const ns = newLocked !== s.locked ? { ...s, locked: newLocked } : s;
+  let ns = newLocked !== s.locked ? { ...s, locked: newLocked } : s;
+  ns = { ...ns, board: newBoard };
+  ns = checkEnemyDefeat(ns);
   if (isSolved(newBoard)) {
     const bonus = (ns.maxTurns - ns.turn + 1) * 100 * (ns.mapLayer + 1);
     const goldEarned = 15 + Math.floor(Math.random() * 10) + ns.mapLayer * 5;
-    return { ...ns, board: newBoard, score: ns.score + bonus, gold: ns.gold + goldEarned, phase: P.WIN, _goldEarned: goldEarned };
+    return { ...ns, score: ns.score + bonus, gold: ns.gold + goldEarned, phase: P.WIN, _goldEarned: goldEarned };
   }
-  return { ...ns, board: newBoard };
+  return ns;
 };
 
 const afterCardPlayed = (s, cardIdx, newBoard, args) => {
@@ -402,11 +600,26 @@ const reducer = (s, a) => {
     case "END_TURN": {
       if (s.board && isSolved(s.board)) return checkWin(s, s.board);
       if (s.turn >= s.maxTurns) return { ...s, phase: P.GAME_OVER };
-      const { deck, discard, drawn } = drawFrom(s.deck, [...s.discard, ...s.hand], s.handSize);
-      return { ...s, deck, discard, hand: drawn, energy: s.maxEnergy, turn: s.turn+1, taps: MAX_TAPS, targeting: null, highlight: new Set(), message: "" };
+      // Step 1: Move enemies (animate), disable controls
+      if (!s.enemies || s.enemies.length === 0) {
+        // No current enemies — still check for reinforcement spawns
+        const afterSpawn = spawnReinforcement(s);
+        const { deck, discard, drawn } = drawFrom(afterSpawn.deck, [...afterSpawn.discard, ...afterSpawn.hand], afterSpawn.handSize);
+        return { ...afterSpawn, deck, discard, hand: drawn, energy: afterSpawn.maxEnergy, turn: afterSpawn.turn+1, taps: MAX_TAPS, targeting: null, highlight: new Set() };
+      }
+      return processEnemyMove({ ...s, message: "Enemy turn...", targeting: null, highlight: new Set() });
+    }
+    case "ENEMY_ABILITY": {
+      // Step 2: Enemies use abilities
+      return processEnemyAbilities(s);
+    }
+    case "FINISH_ENEMY_TURN": {
+      // Step 3: Draw new hand, return control to player
+      return finishEnemyTurn(s);
     }
 
     case "SELECT_CARD": {
+      if (s.enemyTurnPhase) return s; // locked during enemy turn
       const card = s.hand[a.idx];
       if (!card || card.cost > s.energy) return s;
       if (card.special) {
@@ -452,6 +665,7 @@ const reducer = (s, a) => {
     case "CANCEL_TARGET": return { ...s, targeting:null, highlight:new Set(), message:"" };
 
     case "CLICK_CELL": {
+      if (s.enemyTurnPhase) return s; // locked during enemy turn animation
       const {r,c}=a, sz=s.board.length;
       if (s.targeting) {
         // If this click came from a drag release for a different card, ignore it
@@ -473,9 +687,12 @@ const reducer = (s, a) => {
         return s;
       }
       if (s.taps<=0) return {...s,message:"No taps left this turn!"};
+      // Block tap-cycling on enemy-occupied cells
+      const enemyAt = (er,ec) => s.enemies?.some(e => e.r===er && e.c===ec);
+      if (enemyAt(r,c)) return {...s, message:"Can't tap an enemy cell — use a card!"};
       const b=cloneBoard(s.board);
       const targets=[[r,c],...ALL_DIRS.map(([dr,dc])=>[r+dr,c+dc])];
-      for (const [tr,tc] of targets) { if(inB(tr,tc,sz)&&!s.locked[tr][tc]) b[tr][tc]=nextColor(b[tr][tc],s.colorCycle); }
+      for (const [tr,tc] of targets) { if(inB(tr,tc,sz)&&!s.locked[tr][tc]&&!enemyAt(tr,tc)) b[tr][tc]=nextColor(b[tr][tc],s.colorCycle); }
       return checkWin({...s,board:b,taps:s.taps-1,message:""},b);
     }
 
@@ -1264,6 +1481,157 @@ const DeckViewScreen = ({ state: s, dispatch }) => {
 };
 
 // ═══════════════════════════════════════════════════════════
+// ENEMY OVERLAY — positioned absolutely over board, no grid impact
+// ═══════════════════════════════════════════════════════════
+const EnemyOverlay = ({ enemies, sz, turn, boardRef, hoveredEnemy, setHoveredEnemy, enemyTurnPhase, affectedCells }) => {
+  const [layout, setLayout] = useState(null);
+
+  useEffect(() => {
+    const measure = () => {
+      if (!boardRef.current) return;
+      const el = boardRef.current;
+      const style = getComputedStyle(el);
+      const w = el.offsetWidth;
+      const gap = parseFloat(style.gap) || 3;
+      const pad = parseFloat(style.paddingLeft) || 3;
+      const cellW = (w - pad * 2 - gap * (sz - 1)) / sz;
+      setLayout({ w, gap, pad, cellW });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [boardRef, sz, enemies]);
+
+  if (!layout || !enemies.length) return null;
+  const { gap, pad, cellW } = layout;
+
+  return (
+    <div style={{ position:"absolute", top:0, left:0, width:"100%", height:"100%", pointerEvents:"none", zIndex:10 }}>
+      {/* Ability flash overlay — shows which cells enemies just affected */}
+      {enemyTurnPhase === "ability" && affectedCells && [...affectedCells].map(cellKey => {
+        const [pr, pc] = cellKey.split(",").map(Number);
+        return (
+          <div key={`flash-${cellKey}`} className="enemy-ability-flash" style={{
+            position:"absolute",
+            left: pad + pc * (cellW + gap),
+            top: pad + pr * (cellW + gap),
+            width: cellW, height: cellW,
+            borderRadius: "var(--cell-radius)",
+          }} />
+        );
+      })}
+      {enemies.map(enemy => {
+        const def = ENEMY_DEFS[enemy.defId];
+        const abil = ENEMY_ABILITIES[def.abilities[turn % def.abilities.length]];
+        const left = pad + enemy.c * (cellW + gap);
+        const top = pad + enemy.r * (cellW + gap);
+        const spriteSize = cellW * 1.3;
+        const isHovered = hoveredEnemy === enemy.id;
+        const intentCells = isHovered ? abil.preview(enemy, sz) : [];
+        return (
+          <div key={enemy.id}>
+            {/* Intent preview: highlight affected cells */}
+            {intentCells.map(cellKey => {
+              const [pr, pc] = cellKey.split(",").map(Number);
+              return (
+                <div key={cellKey} style={{
+                  position:"absolute",
+                  left: pad + pc * (cellW + gap),
+                  top: pad + pr * (cellW + gap),
+                  width: cellW, height: cellW,
+                  borderRadius: "var(--cell-radius)",
+                  background: "rgba(255,60,60,0.2)",
+                  border: "2px solid rgba(255,60,60,0.5)",
+                  pointerEvents:"none",
+                }} />
+              );
+            })}
+            {/* Enemy sprite — clicks pass through to cell beneath */}
+            <div
+              className={enemy._spawning ? "enemy-sprite-spawn" : enemyTurnPhase === "ability" ? "enemy-sprite-attack" : "enemy-sprite-bob"}
+              style={{
+                position:"absolute",
+                left: left + cellW / 2 - spriteSize / 2,
+                top: top + cellW - spriteSize * 0.85,
+                width: spriteSize,
+                height: spriteSize,
+                pointerEvents:"auto",
+                cursor:"pointer",
+                filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.5))",
+                transition: "left 0.5s ease, top 0.5s ease",
+                animationDelay: `${(enemy.r * sz + enemy.c) * 0.3}s`,
+              }}
+              onMouseEnter={() => setHoveredEnemy(enemy.id)}
+              onMouseLeave={() => setHoveredEnemy(null)}
+              onTouchStart={(e) => { e.stopPropagation(); setHoveredEnemy(isHovered ? null : enemy.id); }}
+              onClick={(e) => {
+                // Forward click to the board cell underneath
+                e.stopPropagation();
+                const el = document.elementFromPoint(e.clientX, e.clientY);
+                // Temporarily hide this sprite, find the cell beneath, click it
+                const self = e.currentTarget;
+                self.style.pointerEvents = "none";
+                const below = document.elementFromPoint(e.clientX, e.clientY);
+                self.style.pointerEvents = "auto";
+                if (below && below.classList.contains("board-cell")) below.click();
+              }}
+            >
+              <img
+                src={`/enemies/${def.sprite}.png`}
+                alt={def.name}
+                style={{ width:"100%", height:"100%", objectFit:"contain" }}
+                draggable={false}
+              />
+              {/* Color chain progress */}
+              <div style={{
+                position:"absolute", bottom: -4, left:"50%", transform:"translateX(-50%)",
+                display:"flex", gap: 2,
+              }}>
+                {enemy.chain.map((color, i) => (
+                  <div key={i} style={{
+                    width: Math.max(6, 12 - sz), height: Math.max(6, 12 - sz),
+                    borderRadius: "50%", background: color,
+                    border: `2px solid ${i < enemy.chainIdx ? "#0a0a0f" : "#fff8"}`,
+                    opacity: i < enemy.chainIdx ? 0.3 : 1,
+                    boxShadow: i === enemy.chainIdx ? `0 0 6px ${color}` : "none",
+                  }} />
+                ))}
+              </div>
+            </div>
+            {/* Hover tooltip */}
+            {isHovered && (
+              <div style={{
+                position:"absolute",
+                left: left + cellW / 2,
+                top: top - spriteSize * 0.35 - 48,
+                transform:"translateX(-50%)",
+                background:"#1a1028",
+                border:"1px solid #4a2868",
+                borderRadius: 8,
+                padding:"6px 10px",
+                pointerEvents:"none",
+                zIndex: 50,
+                whiteSpace:"nowrap",
+                boxShadow:"0 4px 12px rgba(0,0,0,0.6)",
+              }}>
+                <div style={{ fontWeight:800, fontSize:11, color:"#ff8888", marginBottom:2 }}>{def.name}</div>
+                {def.abilities.map(aId => {
+                  const a = ENEMY_ABILITIES[aId];
+                  return <div key={aId} style={{ fontSize:9, color:"#ccc" }}>{a.icon} {a.name}: {a.desc}</div>;
+                })}
+                <div style={{ fontSize:8, color:"#888", marginTop:3 }}>
+                  Chain: {enemy.chain.map((c, i) => (i < enemy.chainIdx ? "✓" : "●")).join(" ")} ({enemy.chainIdx}/{enemy.chain.length})
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════
 // MAIN GAME COMPONENT
 // ═══════════════════════════════════════════════════════════
 // ── Compute preview cells for a card targeting a cell ──
@@ -1308,6 +1676,7 @@ export default function CellsRoguelike() {
   const [s, dispatch] = useReducer(reducer, null, initState);
   const [drag, setDrag] = useState(null); // { idx, x, y }
   const [hoverCell, setHoverCell] = useState(null); // { r, c }
+  const [hoveredEnemy, setHoveredEnemy] = useState(null); // enemy id
   const boardRef = useRef(null);
   const dragCardRef = useRef(null);
 
@@ -1337,6 +1706,20 @@ export default function CellsRoguelike() {
     }
     prevBoardRef.current = cur ? cur.map(row => [...row]) : null;
   }, [s.board]);
+
+  // ── Enemy turn animation sequencer ──
+  useEffect(() => {
+    if (!s.enemyTurnPhase) return;
+    let timer;
+    if (s.enemyTurnPhase === "moving") {
+      // After movement animation plays (CSS transition), trigger abilities
+      timer = setTimeout(() => dispatch({ type: "ENEMY_ABILITY" }), 650);
+    } else if (s.enemyTurnPhase === "ability") {
+      // After ability visual, finish turn
+      timer = setTimeout(() => dispatch({ type: "FINISH_ENEMY_TURN" }), 800);
+    }
+    return () => clearTimeout(timer);
+  }, [s.enemyTurnPhase]);
 
   // Compute preview cells when dragging over board
   const previewCells = (drag && hoverCell && s.hand[drag.idx])
@@ -1504,10 +1887,12 @@ export default function CellsRoguelike() {
         {/* Message – always present to reserve layout space */}
         <div style={{
           ...box({borderRadius:8,padding:"4px 8px"}),
-          textAlign:"center", fontSize:"clamp(10px, 3vw, 12px)", color:"#aaa",
-          visibility: (s.message || s.targeting) ? "visible" : "hidden",
+          textAlign:"center", fontSize:"clamp(10px, 3vw, 12px)",
+          color: s.enemyTurnPhase ? "#ff8888" : "#aaa",
+          fontWeight: s.enemyTurnPhase ? 700 : 400,
+          visibility: (s.message || s.targeting || s.enemyTurnPhase) ? "visible" : "hidden",
         }}>
-          {s.message || "\u00A0"}
+          {s.enemyTurnPhase === "moving" ? "⚔ Enemy moving..." : s.enemyTurnPhase === "ability" ? "⚔ Enemy attacks!" : s.message || "\u00A0"}
         </div>
 
         {/* Cycle */}
@@ -1516,24 +1901,29 @@ export default function CellsRoguelike() {
 
       {/* ── Board (fills remaining space) ── */}
       <div className="game-board-area">
-        <div ref={boardRef} className={`game-board${drag && hoverCell ? " board-drag-active" : ""}`} style={{ ...box(), gridTemplateColumns:`repeat(${sz}, 1fr)` }}>
-          {s.board?.map((rowArr, r) => rowArr.map((color, c) => {
-            const key = `${r},${c}`;
-            const lit = s.highlight.has(key);
-            const isLocked = s.locked[r][c];
-            const isPrev = previewCells.has(key);
-            const isHoverTarget = hoverCell && hoverCell.r === r && hoverCell.c === c && drag;
-            const isChanged = changedCells.has(key);
-            return (
-              <div key={key}
-                className={`board-cell${lit?" board-cell-lit":""}${isLocked?" board-cell-locked":""}${isPrev?" board-cell-preview":""}${isHoverTarget?" board-cell-target":""}${isChanged?" board-cell-changed":""}`}
-                onClick={()=>dispatch({type:"CLICK_CELL",r,c})}
-                style={{
-                  "--cell-color": color,
-                }}
-              >{isLocked && <span style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"clamp(6px, min(2vw, 2vh), 14px)", lineHeight:1, pointerEvents:"none" }}>🔒</span>}</div>
-            );
-          }))}
+        <div style={{ position:"relative" }}>
+          <div ref={boardRef} className={`game-board${drag && hoverCell ? " board-drag-active" : ""}`} style={{ ...box(), gridTemplateColumns:`repeat(${sz}, 1fr)` }}>
+            {s.board?.map((rowArr, r) => rowArr.map((color, c) => {
+              const key = `${r},${c}`;
+              const lit = s.highlight.has(key);
+              const isLocked = s.locked[r][c];
+              const isPrev = previewCells.has(key);
+              const isHoverTarget = hoverCell && hoverCell.r === r && hoverCell.c === c && drag;
+              const isChanged = changedCells.has(key);
+              const hasEnemy = s.enemies?.some(e => e.r === r && e.c === c);
+              return (
+                <div key={key}
+                  className={`board-cell${lit?" board-cell-lit":""}${isLocked?" board-cell-locked":""}${isPrev?" board-cell-preview":""}${isHoverTarget?" board-cell-target":""}${isChanged?" board-cell-changed":""}${hasEnemy?" board-cell-enemy":""}`}
+                  onClick={()=>dispatch({type:"CLICK_CELL",r,c})}
+                  style={{
+                    "--cell-color": color,
+                  }}
+                >{isLocked && <span style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"clamp(6px, min(2vw, 2vh), 14px)", lineHeight:1, pointerEvents:"none" }}>🔒</span>}</div>
+              );
+            }))}
+          </div>
+          {/* ── Enemy sprite overlay — absolutely positioned, no grid impact ── */}
+          {s.enemies?.length > 0 && <EnemyOverlay enemies={s.enemies} sz={sz} turn={s.turn} boardRef={boardRef} hoveredEnemy={hoveredEnemy} setHoveredEnemy={setHoveredEnemy} enemyTurnPhase={s.enemyTurnPhase} affectedCells={s._enemyAffectedCells} />}
         </div>
       </div>
 
@@ -1541,10 +1931,10 @@ export default function CellsRoguelike() {
       <ColorPicker numColors={s.numColors} onPick={color=>dispatch({type:"PICK_COLOR",color})} disabled={!needsColorPick} />
 
       {/* ── Hand ── */}
-      <div className="game-hand-area">
+      <div className="game-hand-area" style={s.enemyTurnPhase ? { opacity:0.4, pointerEvents:"none" } : {}}>
         <div className="game-hand">
           {s.hand.length ? s.hand.map((card,i) => {
-            const playable = card.cost <= s.energy;
+            const playable = card.cost <= s.energy && !s.enemyTurnPhase;
             const count = s.hand.length;
             const mid = (count - 1) / 2;
             const offset = i - mid;
@@ -1672,7 +2062,7 @@ export default function CellsRoguelike() {
 
       {/* ── Action buttons ── */}
       <div className="game-actions">
-        <Btn variant="danger" onClick={()=>dispatch({type:"END_TURN"})}>End Turn</Btn>
+        <Btn variant="danger" onClick={()=>dispatch({type:"END_TURN"})} style={s.enemyTurnPhase ? {opacity:0.4,pointerEvents:"none"} : {}}>End Turn</Btn>
         {s.targeting && <Btn variant="dim" onClick={()=>dispatch({type:"CANCEL_TARGET"})}>Cancel</Btn>}
         <Btn variant="dim" onClick={()=>dispatch({type:"VIEW_DECK"})}>View Deck</Btn>
       </div>

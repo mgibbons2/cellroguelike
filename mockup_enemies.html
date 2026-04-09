@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Cells Roguelike — Enemy Mockup</title>
+<style>
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; width:100%; overflow:hidden; }
+body {
+  background: #0a0a0f;
+  color: #e0e0e0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  display: flex; justify-content: center; align-items: center;
+}
+
+.game-shell {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 6px; width: 100%; max-width: 420px; padding: 8px;
+  height: 100dvh;
+}
+
+/* HUD */
+.hud { display: flex; justify-content: space-between; width: 100%; padding: 4px 8px; }
+.hud-item { font-size: 11px; font-weight: 700; }
+.hud-item span { color: #f1c40f; }
+
+/* Message bar */
+.message-bar {
+  background: #141420; border: 1px solid #222238; border-radius: 8px;
+  padding: 4px 8px; text-align: center; font-size: 11px; color: #aaa;
+  width: 100%;
+}
+
+/* Enemy intent bar */
+.enemy-intent-bar {
+  background: #1a1020; border: 1px solid #3a2050; border-radius: 8px;
+  padding: 6px 10px; width: 100%; display: flex; align-items: center;
+  gap: 8px; font-size: 11px;
+}
+.intent-icon { font-size: 16px; }
+.intent-text { color: #e0a0ff; font-weight: 600; }
+.intent-detail { color: #888; font-size: 10px; }
+
+/* Board */
+.board-area { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; }
+.board {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 3px; padding: 3px;
+  width: min(85vw, calc(100dvh - 440px), 380px);
+  aspect-ratio: 1;
+  background: #141420; border: 1px solid #222238; border-radius: 10px;
+}
+
+/* Cells */
+.cell {
+  border-radius: 5px;
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid transparent;
+  box-shadow:
+    inset 2.5px 2.5px 0 rgba(255,255,255,0.28),
+    inset -2.5px -2.5px 0 rgba(0,0,0,0.35),
+    0 2px 0 rgba(0,0,0,0.3);
+  transition: all 0.2s ease;
+}
+
+/* Enemy-occupied cell */
+.cell.has-enemy {
+  border-color: #ff4444aa;
+  z-index: 5;
+}
+
+/* Enemy sprite container — sits on top of cell, overflows upward */
+.enemy-sprite {
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 130%;
+  height: auto;
+  z-index: 10;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 4px rgba(0,0,0,0.5));
+  /* Isometric tilt */
+  transform: translateX(-50%) perspective(200px) rotateX(-5deg);
+}
+.enemy-sprite .enemy-body {
+  position: relative;
+  width: 100%;
+  display: flex; justify-content: center;
+}
+.enemy-sprite .body-img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.enemy-sprite .face-img {
+  position: absolute;
+  top: 22%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  height: auto;
+}
+.enemy-sprite .hand-left {
+  position: absolute;
+  bottom: 15%;
+  left: -12%;
+  width: 32%;
+  transform: scaleX(-1);
+}
+.enemy-sprite .hand-right {
+  position: absolute;
+  bottom: 15%;
+  right: -12%;
+  width: 32%;
+}
+.enemy-sprite .shadow-img {
+  position: absolute;
+  bottom: -6%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  opacity: 0.4;
+  z-index: -1;
+}
+
+/* Enemy health pip */
+.enemy-hp {
+  position: absolute;
+  top: -4px; right: -4px;
+  background: #c0392b;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid #0a0a0f;
+  z-index: 20;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+/* Enemy name tag */
+.enemy-name {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 7px;
+  font-weight: 800;
+  color: #ff8888;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  z-index: 20;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* Ability indicator on cell */
+.ability-indicator {
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  background: #1a1020;
+  border: 1px solid #6a3090;
+  border-radius: 4px;
+  padding: 1px 4px;
+  z-index: 25;
+  white-space: nowrap;
+  color: #e0a0ff;
+  font-weight: 700;
+}
+
+/* Targeted cells glow */
+.cell.enemy-target {
+  box-shadow:
+    inset 2.5px 2.5px 0 rgba(255,255,255,0.28),
+    inset -2.5px -2.5px 0 rgba(0,0,0,0.35),
+    0 2px 0 rgba(0,0,0,0.3),
+    0 0 12px rgba(255,60,60,0.4);
+  border-color: #ff666688;
+}
+
+/* Locked cell */
+.cell .lock {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; pointer-events: none;
+}
+
+/* Color picker (simplified) */
+.color-picker {
+  display: flex; gap: 6px; justify-content: center; padding: 4px;
+  background: #141420; border: 1px solid #222238; border-radius: 10px;
+  width: 100%;
+}
+.color-pip {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 3px solid #444; cursor: pointer;
+  transition: transform 0.1s;
+}
+.color-pip:hover { transform: scale(1.15); border-color: #fff; }
+
+/* Hand */
+.hand { display: flex; gap: 8px; justify-content: center; padding: 6px 0; width: 100%; overflow-x: auto; }
+.card {
+  background: #141420; border: 1px solid #333;
+  border-radius: 8px; padding: 6px 8px; min-width: 72px;
+  text-align: center; font-size: 9px; cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.card:hover { transform: translateY(-4px); box-shadow: 0 4px 12px rgba(52,152,219,0.3); }
+.card .card-icon { font-size: 18px; margin-bottom: 2px; }
+.card .card-name { font-weight: 700; color: #fff; font-size: 9px; }
+.card .card-cost { font-size: 8px; color: #3498db; font-weight: 700; }
+
+/* Buttons */
+.btn-row { display: flex; gap: 8px; width: 100%; justify-content: center; padding: 4px 0; }
+.game-btn {
+  padding: 6px 16px; border: none; border-radius: 6px;
+  font-weight: 800; font-size: 11px; cursor: pointer;
+  font-family: inherit; color: #fff;
+}
+.btn-primary { background: linear-gradient(to bottom, #3eaaef, #2980b9 50%, #1f6fa0); border-bottom: 3px solid #16527a; }
+.btn-danger { background: linear-gradient(to bottom, #e85d5d, #c0392b 50%, #a5311f); border-bottom: 3px solid #7a1810; }
+.btn-dim { background: linear-gradient(to bottom, #555, #383838 50%, #2a2a2a); border-bottom: 3px solid #1a1a1a; }
+
+/* Enemy turn overlay animation */
+@keyframes enemyPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,60,60,0); }
+  50% { box-shadow: 0 0 20px 4px rgba(255,60,60,0.3); }
+}
+.cell.enemy-acting {
+  animation: enemyPulse 0.8s ease infinite;
+}
+
+/* Enemy turn banner */
+.turn-banner {
+  position: fixed; top: 0; left: 0; right: 0;
+  background: linear-gradient(to bottom, rgba(150,30,30,0.9), rgba(80,15,15,0.7));
+  color: #ff8888;
+  text-align: center;
+  padding: 8px;
+  font-weight: 800;
+  font-size: 13px;
+  z-index: 100;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-bottom: 2px solid #ff4444;
+  display: none;
+}
+.turn-banner.active { display: block; }
+
+/* Phase indicator dots */
+.phase-dots {
+  display: flex; gap: 4px; justify-content: center; align-items: center;
+  margin-bottom: 2px;
+}
+.phase-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: #333;
+  transition: all 0.3s;
+}
+.phase-dot.player { background: #3498db; }
+.phase-dot.enemy { background: #e74c3c; }
+.phase-dot.active { width: 16px; border-radius: 3px; }
+
+/* Enemy ability preview lines */
+.ability-line {
+  position: absolute;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #ff4444, transparent);
+  z-index: 8;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* Bobbing animation for enemies */
+@keyframes enemyBob {
+  0%, 100% { transform: translateX(-50%) perspective(200px) rotateX(-5deg) translateY(0); }
+  50% { transform: translateX(-50%) perspective(200px) rotateX(-5deg) translateY(-3px); }
+}
+.enemy-sprite { animation: enemyBob 2s ease-in-out infinite; }
+.enemy-sprite:nth-child(2) { animation-delay: 0.5s; }
+</style>
+</head>
+<body>
+
+<!-- Enemy turn banner (hidden by default, toggle with JS) -->
+<div class="turn-banner" id="turnBanner">ENEMY TURN</div>
+
+<div class="game-shell">
+  <!-- Phase indicator -->
+  <div class="phase-dots">
+    <div class="phase-dot player active"></div>
+    <div class="phase-dot enemy"></div>
+  </div>
+
+  <!-- HUD -->
+  <div class="hud">
+    <div class="hud-item">Energy: <span>2/3</span></div>
+    <div class="hud-item">Turn: <span>3/8</span></div>
+    <div class="hud-item">Taps: <span>2</span></div>
+    <div class="hud-item" style="color:#f1c40f;">Score: 1200</div>
+  </div>
+
+  <!-- Enemy intent bar — shows what enemies plan to do next -->
+  <div class="enemy-intent-bar">
+    <span class="intent-icon">🔮</span>
+    <div>
+      <div class="intent-text">Goblin Painter will paint row 3 red</div>
+      <div class="intent-detail">Slime will move to (2,4)</div>
+    </div>
+  </div>
+
+  <!-- Message -->
+  <div class="message-bar">Select a card or tap a cell</div>
+
+  <!-- Board -->
+  <div class="board-area">
+    <div class="board" id="board"></div>
+  </div>
+
+  <!-- Color picker -->
+  <div class="color-picker">
+    <div class="color-pip" style="background:#e74c3c;"></div>
+    <div class="color-pip" style="background:#3498db;"></div>
+    <div class="color-pip" style="background:#2ecc71;"></div>
+    <div class="color-pip" style="background:#f1c40f;"></div>
+  </div>
+
+  <!-- Hand -->
+  <div class="hand">
+    <div class="card">
+      <div class="card-icon">🌊</div>
+      <div class="card-name">Flood Fill</div>
+      <div class="card-cost">1 energy</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🎨</div>
+      <div class="card-name">Paint</div>
+      <div class="card-cost">1 energy</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔄</div>
+      <div class="card-name">Color Swap</div>
+      <div class="card-cost">2 energy</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">↔️</div>
+      <div class="card-name">Row Wash</div>
+      <div class="card-cost">2 energy</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">⚡</div>
+      <div class="card-name">Energize</div>
+      <div class="card-cost">0 energy</div>
+    </div>
+  </div>
+
+  <!-- Buttons -->
+  <div class="btn-row">
+    <button class="game-btn btn-primary" onclick="toggleEnemyTurn()">End Turn</button>
+    <button class="game-btn btn-dim">View Deck</button>
+    <button class="game-btn btn-danger">Cancel</button>
+  </div>
+</div>
+
+<script>
+const COLORS = ["#e74c3c","#3498db","#2ecc71","#f1c40f"];
+const ASSET = "enemy_spritesheet/PNG/Double/";
+
+// Board state
+const boardColors = [
+  ["#e74c3c","#3498db","#2ecc71","#e74c3c","#f1c40f"],
+  ["#3498db","#3498db","#e74c3c","#2ecc71","#2ecc71"],
+  ["#2ecc71","#f1c40f","#e74c3c","#f1c40f","#3498db"],
+  ["#e74c3c","#2ecc71","#3498db","#3498db","#f1c40f"],
+  ["#f1c40f","#e74c3c","#2ecc71","#e74c3c","#3498db"],
+];
+
+// Enemy definitions with abilities
+const enemies = [
+  {
+    name: "Goblin Painter",
+    type: "normal",
+    r: 0, c: 2,
+    body: "red_body_rhombus.png",
+    face: "face_f.png",       // angry face
+    handL: "red_hand_closed.png",
+    handR: "red_hand_point.png",
+    color: "red",
+    ability: { name: "Row Paint", icon: "🎨", desc: "Paints a random row", targetRow: 2 },
+    hp: 2,
+  },
+  {
+    name: "Slime",
+    type: "normal",
+    r: 3, c: 4,
+    body: "green_body_circle.png",
+    face: "face_a.png",       // happy face
+    handL: "green_hand_open.png",
+    handR: "green_hand_open.png",
+    color: "green",
+    ability: { name: "Spread", icon: "🟢", desc: "Paints adjacent cells its color" },
+    hp: 1,
+  },
+  {
+    name: "Frost Mage",
+    type: "elite",
+    r: 1, c: 4,
+    body: "blue_body_square.png",
+    face: "face_d.png",       // smirk face
+    handL: "blue_hand_peace.png",
+    handR: "blue_hand_rock.png",
+    color: "blue",
+    ability: { name: "Freeze", icon: "🧊", desc: "Locks a random cell" },
+    hp: 3,
+  },
+];
+
+// Render the board
+const board = document.getElementById("board");
+
+for (let r = 0; r < 5; r++) {
+  for (let c = 0; c < 5; c++) {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.style.background = boardColors[r][c];
+
+    // Check if an enemy is on this cell
+    const enemy = enemies.find(e => e.r === r && e.c === c);
+    if (enemy) {
+      cell.classList.add("has-enemy");
+
+      // Name tag
+      const nameTag = document.createElement("div");
+      nameTag.className = "enemy-name";
+      nameTag.textContent = enemy.name;
+      if (enemy.type === "elite") nameTag.style.color = "#aa88ff";
+      cell.appendChild(nameTag);
+
+      // HP pip
+      const hp = document.createElement("div");
+      hp.className = "enemy-hp";
+      hp.textContent = enemy.hp;
+      if (enemy.type === "elite") hp.style.background = "#8b5cf6";
+      cell.appendChild(hp);
+
+      // Sprite container
+      const sprite = document.createElement("div");
+      sprite.className = "enemy-sprite";
+
+      // Shadow
+      const shadow = document.createElement("img");
+      shadow.className = "shadow-img";
+      shadow.src = ASSET + "shadow.png";
+      sprite.appendChild(shadow);
+
+      // Body wrapper
+      const bodyWrap = document.createElement("div");
+      bodyWrap.className = "enemy-body";
+
+      const bodyImg = document.createElement("img");
+      bodyImg.className = "body-img";
+      bodyImg.src = ASSET + enemy.body;
+      bodyWrap.appendChild(bodyImg);
+
+      const faceImg = document.createElement("img");
+      faceImg.className = "face-img";
+      faceImg.src = ASSET + enemy.face;
+      bodyWrap.appendChild(faceImg);
+
+      sprite.appendChild(bodyWrap);
+
+      // Hands
+      const handL = document.createElement("img");
+      handL.className = "hand-left";
+      handL.src = ASSET + enemy.handL;
+      sprite.appendChild(handL);
+
+      const handR = document.createElement("img");
+      handR.className = "hand-right";
+      handR.src = ASSET + enemy.handR;
+      sprite.appendChild(handR);
+
+      cell.appendChild(sprite);
+
+      // Ability indicator
+      const abil = document.createElement("div");
+      abil.className = "ability-indicator";
+      abil.textContent = enemy.ability.icon + " " + enemy.ability.name;
+      cell.appendChild(abil);
+    }
+
+    // Show targeted cells for Goblin Painter's row paint preview
+    if (r === 2 && !enemies.find(e => e.r === r && e.c === c)) {
+      cell.classList.add("enemy-target");
+    }
+
+    // Locked cell example
+    if (r === 4 && c === 0) {
+      const lock = document.createElement("div");
+      lock.className = "lock";
+      lock.textContent = "🔒";
+      cell.appendChild(lock);
+    }
+
+    board.appendChild(cell);
+  }
+}
+
+// Demo: toggle enemy turn banner
+let enemyTurnActive = false;
+function toggleEnemyTurn() {
+  enemyTurnActive = !enemyTurnActive;
+  document.getElementById("turnBanner").classList.toggle("active", enemyTurnActive);
+
+  // Toggle phase dots
+  const dots = document.querySelectorAll(".phase-dot");
+  dots[0].classList.toggle("active", !enemyTurnActive);
+  dots[1].classList.toggle("active", enemyTurnActive);
+
+  // Animate enemy cells
+  document.querySelectorAll(".cell.has-enemy").forEach(cell => {
+    cell.classList.toggle("enemy-acting", enemyTurnActive);
+  });
+}
+</script>
+</body>
+</html>
