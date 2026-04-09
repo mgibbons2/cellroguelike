@@ -7,7 +7,8 @@ const COLORS = ["#e74c3c","#3498db","#2ecc71","#f1c40f","#9b59b6","#e67e22","#1a
 const DIRS = [[-1,0],[1,0],[0,-1],[0,1]];
 const ALL_DIRS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
 const MAX_TAPS = 3;
-const MAP_LAYERS = 13;
+const MAP_LAYERS = 6;
+const TOTAL_FLOORS = 3;
 
 const T = {
   bg: "#0a0a0f", panel: "#141420", border: "#222238", dim: "#666",
@@ -197,13 +198,14 @@ const NORMAL_ENEMIES = ["goblin","slime","trickster","sprite_e","blob"];
 const ELITE_ENEMIES = ["frost_mage","brute","warden"];
 const BOSS_ENEMIES = ["overlord","destroyer"];
 
-const spawnEnemies = (board, locked, layer, nodeType, colorCycle) => {
+const spawnEnemies = (board, locked, layer, nodeType, colorCycle, floor = 1) => {
   const sz = board.length;
-  // Determine count: starts at 1, scales up
+  const gl = (floor - 1) * MAP_LAYERS + layer; // global progression
+  // Determine count: starts at 1, scales with global layer
   let count = 1;
-  if (nodeType === "boss") count = 1;
-  else if (nodeType === "elite") count = layer >= 6 ? 2 : 1;
-  else count = layer >= 8 ? 2 : 1;
+  if (nodeType === "boss") count = floor >= 2 ? 2 : 1;
+  else if (nodeType === "elite") count = gl >= 6 ? 2 : 1;
+  else count = gl >= 8 ? 2 : 1;
   if (count === 0) return [];
 
   const pool = nodeType === "boss" ? BOSS_ENEMIES : nodeType === "elite" ? ELITE_ENEMIES : NORMAL_ENEMIES;
@@ -221,10 +223,11 @@ const spawnEnemies = (board, locked, layer, nodeType, colorCycle) => {
     occupied.add(`${r},${c}`);
     const defId = pick(pool);
     const def = ENEMY_DEFS[defId];
-    // Build color chain from the cycle
+    // Build color chain — base length + floor scaling
+    const chainLen = def.chainLen + (floor - 1);
     const chain = [];
     const available = colorCycle.filter(co => co !== board[r][c]);
-    for (let j = 0; j < def.chainLen; j++) chain.push(pick(available.length ? available : colorCycle));
+    for (let j = 0; j < chainLen; j++) chain.push(pick(available.length ? available : colorCycle));
     enemies.push({ id: uid(), defId, r, c, chain, chainIdx: 0, turnCooldown: 0 });
   }
   return enemies;
@@ -301,9 +304,11 @@ const spawnReinforcement = (s) => {
   if (attempts >= 50) return s;
   const defId = pick(pool);
   const def = ENEMY_DEFS[defId];
+  const floorBonus = (s.floor || 1) - 1;
+  const chainLen = def.chainLen + floorBonus;
   const chain = [];
   const available = colorCycle.filter(co => co !== board[r][c]);
-  for (let j = 0; j < def.chainLen; j++) chain.push(pick(available.length ? available : colorCycle));
+  for (let j = 0; j < chainLen; j++) chain.push(pick(available.length ? available : colorCycle));
   const newEnemy = { id: uid(), defId, r, c, chain, chainIdx: 0, turnCooldown: 0, _spawning: true };
   return { ...s, enemies: [...enemies, newEnemy], message: `A ${def.name} appeared!` };
 };
@@ -362,35 +367,47 @@ const NODE_TYPES = {
   boss:   { icon:"☠", color:"#ff6b6b", label:"Boss" },
 };
 
-const getNodeConfig = (layer, type, hard = false) => {
+const getNodeConfig = (layer, type, hard = false, floor = 1) => {
   const h = hard ? 1 : 0;
+  // Global difficulty scales with floor: treat it as if progressing through more layers
+  const gl = (floor - 1) * MAP_LAYERS + layer; // global layer for scaling
   return {
-    size:      Math.min(5 + Math.floor(layer / 3) + h, 9),
-    numColors: Math.min(3 + Math.floor((layer + 1) / 2) + h, 8),
-    maxTurns:  Math.max(2, (type==="elite" ? 7 : type==="boss" ? 6 : 9 - h) - Math.floor(layer / 2)),
-    locked:    (hard ? (layer >= 4 ? Math.min((layer - 3) * 2, 16) : 0) : (layer >= 7 ? Math.min((layer - 6) * 2, 12) : 0)),
+    size:      Math.min(5 + Math.floor(gl / 3) + h, 9),
+    numColors: Math.min(3 + Math.floor((gl + 1) / 2) + h, 8),
+    maxTurns:  Math.max(2, (type==="elite" ? 7 : type==="boss" ? 6 : 9 - h) - Math.floor(gl / 3)),
+    locked:    (hard ? (gl >= 4 ? Math.min((gl - 3) * 2, 16) : 0) : (gl >= 5 ? Math.min((gl - 4) * 2, 12) : 0)),
   };
 };
 
 const generateMap = () => {
+  // Tree structure: start(1) → combat(2) → combat/elite(2) → rest/shop(2) → combat(2) → boss(1)
   const layers = [];
   for (let i = 0; i < MAP_LAYERS; i++) {
     let count, typePool;
-    if (i===0)              { count=1; typePool=["puzzle"]; }
-    else if(i===MAP_LAYERS-1){ count=1; typePool=["boss"]; }
-    else if(i%4===3)        { count=2+Math.floor(Math.random()*2); typePool=["rest","reward","shop"]; }
-    else                    { count=2+Math.floor(Math.random()*2); typePool=null; }
+    if (i===0)                { count=1; typePool=["puzzle"]; }
+    else if(i===MAP_LAYERS-1) { count=1; typePool=["boss"]; }
+    else if(i===MAP_LAYERS-3) { count=2; typePool=["rest","shop"]; }
+    else                      { count=2; typePool=null; }
     const nodes = [];
     for (let j=0;j<count;j++) {
-      let type; if(typePool) type=typePool[j%typePool.length]; else type=Math.random()<0.18?"elite":"puzzle";
+      let type;
+      if (typePool) type = typePool[j % typePool.length];
+      else type = Math.random() < 0.2 ? "elite" : "puzzle";
       nodes.push({ type, conns:[] });
     }
     layers.push(nodes);
   }
+  // Tree-like connections: each node connects to 1 next node, ensure all reachable
   for (let i=0;i<layers.length-1;i++) {
     const curr=layers[i], next=layers[i+1];
-    for (const node of curr) { const n=1+(Math.random()<0.5?1:0); node.conns=shuffle([...Array(next.length).keys()]).slice(0,Math.min(n,next.length)); }
-    for (let j=0;j<next.length;j++) { if(!curr.some(n=>n.conns.includes(j))) pick(curr).conns.push(j); }
+    for (const node of curr) {
+      node.conns = [Math.floor(Math.random() * next.length)];
+    }
+    for (let j=0;j<next.length;j++) {
+      if (!curr.some(n => n.conns.includes(j))) {
+        pick(curr).conns.push(j);
+      }
+    }
     for (const node of curr) node.conns=[...new Set(node.conns)].sort();
   }
   return layers;
@@ -449,7 +466,7 @@ const RELICS = {
 
 const initState = () => ({
   phase: P.TITLE, score: 0, gold: 0, relics: [], hardMode: false,
-  mapData: [], mapLayer: 0, mapPrevNode: -1,
+  floor: 1, mapData: [], mapLayer: 0, mapPrevNode: -1,
   board: null, locked: null, numColors: 4, colorCycle: [], boardSize: 5,
   deck: [], hand: [], discard: [], maxEnergy: 3, handSize: 5,
   energy: 3, turn: 1, maxTurns: 8, taps: MAX_TAPS,
@@ -468,7 +485,7 @@ const drawFrom = (deck, discard, count) => {
 const hasRelic = (s, id) => s.relics.includes(id);
 
 const buildPuzzle = (s, layer, nodeType) => {
-  const cfg = getNodeConfig(layer, nodeType, s.hardMode);
+  const cfg = getNodeConfig(layer, nodeType, s.hardMode, s.floor);
   const { board, locked, colorCycle } = generateBoard(cfg.size, cfg.numColors, cfg.locked);
   const hs = s.handSize + (hasRelic(s,"draw_charm") ? 1 : 0);
   const me = s.maxEnergy + (hasRelic(s,"energy_orb") ? 1 : 0);
@@ -476,7 +493,7 @@ const buildPuzzle = (s, layer, nodeType) => {
   const tp = MAX_TAPS + (hasRelic(s,"tap_ring") ? 1 : 0) + (hasRelic(s,"lucky_coin") ? 1 : 0);
   const all = shuffle([...s.deck, ...s.hand, ...s.discard]);
   const hand = all.splice(0, hs);
-  const enemies = spawnEnemies(board, locked, layer, nodeType, colorCycle);
+  const enemies = spawnEnemies(board, locked, layer, nodeType, colorCycle, s.floor);
   return {
     ...s, phase: P.PLAY, board, locked, colorCycle, boardSize: cfg.size,
     numColors: cfg.numColors, maxTurns: mt, currentNodeType: nodeType,
@@ -515,8 +532,9 @@ const checkWin = (s, newBoard) => {
   ns = { ...ns, board: newBoard };
   ns = checkEnemyDefeat(ns);
   if (isSolved(newBoard)) {
-    const bonus = (ns.maxTurns - ns.turn + 1) * 100 * (ns.mapLayer + 1);
-    const goldEarned = 15 + Math.floor(Math.random() * 10) + ns.mapLayer * 5;
+    const gl = (ns.floor - 1) * MAP_LAYERS + ns.mapLayer;
+    const bonus = (ns.maxTurns - ns.turn + 1) * 100 * (gl + 1);
+    const goldEarned = 15 + Math.floor(Math.random() * 10) + gl * 5;
     return { ...ns, score: ns.score + bonus, gold: ns.gold + goldEarned, phase: P.WIN, _goldEarned: goldEarned };
   }
   return ns;
@@ -534,12 +552,23 @@ const afterCardPlayed = (s, cardIdx, newBoard, args) => {
 
 const discardFromHand = (s, idx) => ({ hand: s.hand.filter((_,i)=>i!==idx), discard: [...s.discard, s.hand[idx]] });
 
+// Advance to next layer — or next floor if floor complete — or victory
+const advanceAfterNode = (s) => {
+  const nl = s.mapLayer + 1;
+  if (nl < MAP_LAYERS) return { ...s, phase: P.MAP, mapLayer: nl };
+  // Floor complete
+  if (s.floor < TOTAL_FLOORS) {
+    return { ...s, phase: P.MAP, floor: s.floor + 1, mapData: generateMap(), mapLayer: 1, mapPrevNode: 0 };
+  }
+  return { ...s, phase: P.VICTORY };
+};
+
 const reducer = (s, a) => {
   switch (a.type) {
     case "START_RUN": {
       const hard = !!a.hard;
       const deck = shuffle(STARTER_DECK.map(makeCard));
-      return { ...initState(), phase: P.MAP, deck, mapData: generateMap(), maxEnergy: 3, handSize: hard ? 4 : 5, gold: hard ? 30 : 50, mapLayer: 1, mapPrevNode: 0, hardMode: hard };
+      return { ...initState(), phase: P.MAP, deck, mapData: generateMap(), maxEnergy: 3, handSize: hard ? 4 : 5, gold: hard ? 30 : 50, mapLayer: 1, mapPrevNode: 0, hardMode: hard, floor: 1 };
     }
     case "SELECT_NODE": {
       const { layer, node } = a;
@@ -557,29 +586,28 @@ const reducer = (s, a) => {
       }
       return next;
     }
-    case "ADVANCE_MAP": { const nl=s.mapLayer+1; return nl>=MAP_LAYERS ? {...s,phase:P.VICTORY} : {...s,phase:P.MAP,mapLayer:nl}; }
-    case "SHOW_REWARDS": return { ...s, phase: P.REWARD, rewards: rollRewards(s.mapLayer, 3, s.currentNodeType==="elite") };
+    case "ADVANCE_MAP": return advanceAfterNode(s);
+    case "SHOW_REWARDS": { const gl=(s.floor-1)*MAP_LAYERS+s.mapLayer; return { ...s, phase: P.REWARD, rewards: rollRewards(gl, 3, s.currentNodeType==="elite") }; }
     case "SHOW_LEVEL_UP": return { ...s, phase: P.LEVEL_UP };
     case "PICK_REWARD": {
       const next = { ...s, deck: [...s.deck, makeCard(a.cardId)] };
-      const nl = next.mapLayer+1;
-      return nl>=MAP_LAYERS ? {...next,phase:P.VICTORY} : {...next,phase:P.MAP,mapLayer:nl};
+      return advanceAfterNode(next);
     }
     case "LEVEL_UP": {
       const next = a.stat==="energy" ? {...s,maxEnergy:s.maxEnergy+1} : {...s,handSize:s.handSize+1};
-      return { ...next, phase: P.REWARD, rewards: rollRewards(next.mapLayer, 3, true) };
+      return { ...next, phase: P.REWARD, rewards: rollRewards((next.floor-1)*MAP_LAYERS+next.mapLayer, 3, true) };
     }
     case "REMOVE_CARD": {
       const all=[...s.deck,...s.discard,...s.hand]; all.splice(a.idx,1);
-      const next={...s,deck:all,hand:[],discard:[]}; const nl=next.mapLayer+1;
-      return nl>=MAP_LAYERS ? {...next,phase:P.VICTORY} : {...next,phase:P.MAP,mapLayer:nl};
+      const next={...s,deck:all,hand:[],discard:[]};
+      return advanceAfterNode(next);
     }
-    case "SKIP_REMOVE": { const nl=s.mapLayer+1; return nl>=MAP_LAYERS?{...s,phase:P.VICTORY}:{...s,phase:P.MAP,mapLayer:nl}; }
+    case "SKIP_REMOVE": return advanceAfterNode(s);
     case "VIEW_DECK": return { ...s, phase: P.DECK_VIEW, _prevPhase: s.phase };
     case "CLOSE_DECK": return { ...s, phase: s._prevPhase || P.PLAY };
 
     case "SHOP_BUY_CARD": {
-      const cardCost = 30 + (s.mapLayer * 5);
+      const cardCost = 30 + (((s.floor-1)*MAP_LAYERS+s.mapLayer) * 5);
       if (s.gold < cardCost) return s;
       const next = { ...s, gold: s.gold - cardCost, deck: [...s.deck, makeCard(a.cardId)], shopCards: s.shopCards.filter(id => id !== a.cardId) };
       return next;
@@ -595,7 +623,7 @@ const reducer = (s, a) => {
       const all = [...s.deck, ...s.discard, ...s.hand]; all.splice(a.idx, 1);
       return { ...s, gold: s.gold - removeCost, deck: all, hand: [], discard: [] };
     }
-    case "LEAVE_SHOP": { const nl = s.mapLayer+1; return nl >= MAP_LAYERS ? {...s,phase:P.VICTORY} : {...s,phase:P.MAP,mapLayer:nl}; }
+    case "LEAVE_SHOP": return advanceAfterNode(s);
 
     case "END_TURN": {
       if (s.board && isSolved(s.board)) return checkWin(s, s.board);
@@ -923,7 +951,9 @@ const MapScreen = ({ state: s, dispatch }) => {
           </div>
         </div>
 
-        <div style={{ textAlign:"center", fontSize:"clamp(12px, 3.5vw, 15px)", fontWeight:700, color:T.bright, marginBottom:4, flexShrink:0 }}>Choose your path</div>
+        <div style={{ textAlign:"center", fontSize:"clamp(12px, 3.5vw, 15px)", fontWeight:700, color:T.bright, marginBottom:4, flexShrink:0 }}>
+          Floor {s.floor}/{TOTAL_FLOORS} — Choose your path
+        </div>
 
         {/* Legend — wraps and shrinks on mobile */}
         <div className="hide-short" style={{ display:"flex", gap:"clamp(4px, 2vw, 10px)", justifyContent:"center", marginBottom:6, flexWrap:"wrap", flexShrink:0 }}>
@@ -974,16 +1004,16 @@ const MapScreen = ({ state: s, dispatch }) => {
                     <animate attributeName="opacity" values="0.35;0.15;0.35" dur="2s" repeatCount="indefinite" />
                   </circle>}
                   {/* "You are here" pulse for current node */}
-                  {isCurr && <circle cx={x} cy={y} r={NODE_R+8} fill="none" stroke="#fff" strokeWidth={1.5} opacity={0.5}>
+                  {isCurr && <circle cx={x} cy={y} r={NODE_R+8} fill="none" stroke={T.gold} strokeWidth={1.5} opacity={0.5}>
                     <animate attributeName="r" values={`${NODE_R+5};${NODE_R+12};${NODE_R+5}`} dur="2.5s" repeatCount="indefinite" />
                     <animate attributeName="opacity" values="0.5;0.1;0.5" dur="2.5s" repeatCount="indefinite" />
                   </circle>}
                   {/* Soft colored halo behind every node */}
-                  <circle cx={x} cy={y} r={NODE_R+3} fill={nt.color}
-                    opacity={isPast?0.08:isAvail?0.25:isCurr?0.3:0.12} />
+                  <circle cx={x} cy={y} r={NODE_R+3} fill={isCurr?T.gold:nt.color}
+                    opacity={isPast?0.08:isAvail?0.25:isCurr?0.35:0.12} />
                   <circle cx={x} cy={y} r={NODE_R}
-                    fill={nt.color}
-                    stroke={isAvail?T.bright:isCurr?"#fff":nt.color} strokeWidth={isAvail?2.5:isCurr?2.5:2}
+                    fill={isCurr?T.gold:nt.color}
+                    stroke={isAvail?T.bright:isCurr?T.gold:nt.color} strokeWidth={isAvail?2.5:isCurr?2.5:2}
                     opacity={isPast?0.35:isAvail?1:isCurr?0.9:0.5} />
                   <text x={x} y={y+1} textAnchor="middle" dominantBaseline="central"
                     fill={isPast?"#999":"#fff"} fontSize={13} fontWeight={700}
@@ -1231,7 +1261,7 @@ const GameOverScreen = ({ state: s, dispatch }) => (
     <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:16 }}>
       <div style={{ fontSize:"clamp(32px, 8vw, 48px)", fontWeight:900, color:T.danger }}>RUN OVER</div>
       {s.hardMode && <div style={{ fontSize:13, fontWeight:800, color:T.danger, background:`${T.danger}20`, padding:"3px 12px", borderRadius:6 }}>HARD MODE</div>}
-      <div style={{ fontSize:"clamp(14px, 3.5vw, 18px)", color:"#aaa" }}>Made it to layer {s.mapLayer+1} of {MAP_LAYERS}</div>
+      <div style={{ fontSize:"clamp(14px, 3.5vw, 18px)", color:"#aaa" }}>Made it to Floor {s.floor}, Layer {s.mapLayer} of {MAP_LAYERS}</div>
       <div style={{ fontSize:"clamp(20px, 6vw, 32px)", color:T.gold, fontWeight:700 }}>Score: {s.score}</div>
       <Btn onClick={()=>dispatch({type:"START_RUN"})}>New Run</Btn>
     </div>
@@ -1244,7 +1274,7 @@ const VictoryScreen = ({ state: s, dispatch }) => (
     <div style={{ position:"relative", zIndex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:16 }}>
       <div style={{ fontSize:"clamp(36px, 10vw, 56px)", fontWeight:900, color:T.gold, textShadow:`0 0 40px ${T.gold}44` }}>VICTORY!</div>
       {s.hardMode && <div style={{ fontSize:14, fontWeight:800, color:T.danger, background:`${T.danger}20`, padding:"4px 14px", borderRadius:6, letterSpacing:1 }}>HARD MODE CONQUERED</div>}
-      <div style={{ fontSize:"clamp(14px, 3.5vw, 18px)", color:"#aaa" }}>You conquered all {MAP_LAYERS} layers</div>
+      <div style={{ fontSize:"clamp(14px, 3.5vw, 18px)", color:"#aaa" }}>You conquered all {TOTAL_FLOORS} floors!</div>
       <div style={{ fontSize:"clamp(24px, 6vw, 36px)", color:T.success, fontWeight:700 }}>Score: {s.score}</div>
       <Btn onClick={()=>dispatch({type:"START_RUN"})}>Play Again</Btn>
     </div>
@@ -1260,7 +1290,7 @@ const WinScreen = ({ state: s, dispatch }) => {
       <div style={{ fontSize:22, fontWeight:800, color:isBoss?T.gold:T.success, marginBottom:12 }}>
         {isBoss?"BOSS DEFEATED!":isElite?"ELITE CLEARED!":"PUZZLE CLEARED!"}
       </div>
-      <div style={{ fontSize:14, color:"#aaa", marginBottom:4 }}>+{(s.maxTurns-s.turn+1)*100*(s.mapLayer+1)} points</div>
+      <div style={{ fontSize:14, color:"#aaa", marginBottom:4 }}>+{(s.maxTurns-s.turn+1)*100*(((s.floor-1)*MAP_LAYERS+s.mapLayer)+1)} points</div>
       <div style={{ fontSize:14, color:T.gold, marginBottom:12 }}>+{s._goldEarned||0} gold</div>
       <Btn onClick={goNext}>Continue</Btn>
     </Overlay>
@@ -1349,24 +1379,24 @@ const RemoveScreen = ({ state: s, dispatch }) => {
   const all = [...s.deck,...s.discard,...s.hand];
   return (
     <Overlay>
-      <div style={{ fontSize:18, fontWeight:800, color:T.warn, marginBottom:4 }}>
-        {s.currentNodeType==="rest"?"REST STOP":"TRIM YOUR DECK"}
+      <div style={{ fontSize:18, fontWeight:800, color:T.warn, marginBottom:2 }}>
+        {s.currentNodeType==="rest" ? "REST STOP" : "TRIM YOUR DECK"}
       </div>
-      <div style={{ fontSize:12, color:T.dim, marginBottom:12 }}>Remove a card or skip.</div>
-      <div style={{ display:"flex", gap:10, justifyContent:"center", flexWrap:"wrap", overflow:"visible", padding:"12px 0" }}>
+      <div style={{ fontSize:11, color:T.dim, marginBottom:10 }}>
+        {s.currentNodeType==="rest" ? "Take a breather. Remove a card to sharpen your deck." : "Choose a card to remove."}
+      </div>
+      <div style={{ maxHeight:"min(55vh, 360px)", overflowY:"auto", WebkitOverflowScrolling:"touch", display:"flex", flexDirection:"column", gap:4, padding:"4px 0" }}>
         {all.map((card,i) => (
-          <div key={i} className="shop-card-wrap">
-            <CardView card={card} onClick={()=>dispatch({type:"REMOVE_CARD",idx:i})} />
-          </div>
+          <CardView key={i} card={card} compact onClick={()=>dispatch({type:"REMOVE_CARD",idx:i})} />
         ))}
       </div>
-      <Btn variant="dim" onClick={()=>dispatch({type:"SKIP_REMOVE"})} style={{marginTop:12}}>Skip</Btn>
+      <Btn variant="dim" onClick={()=>dispatch({type:"SKIP_REMOVE"})} style={{marginTop:10}}>Skip</Btn>
     </Overlay>
   );
 };
 
 const ShopScreen = ({ state: s, dispatch }) => {
-  const cardCost = 30 + (s.mapLayer * 5);
+  const cardCost = 30 + (((s.floor-1)*MAP_LAYERS+s.mapLayer) * 5);
   const removeCost = 50;
   const allCards = [...s.deck, ...s.discard, ...s.hand];
   return (
@@ -1582,21 +1612,29 @@ const EnemyOverlay = ({ enemies, sz, turn, boardRef, hoveredEnemy, setHoveredEne
                 style={{ width:"100%", height:"100%", objectFit:"contain" }}
                 draggable={false}
               />
-              {/* Color chain progress */}
-              <div style={{
-                position:"absolute", bottom: -4, left:"50%", transform:"translateX(-50%)",
-                display:"flex", gap: 2,
-              }}>
-                {enemy.chain.map((color, i) => (
-                  <div key={i} style={{
-                    width: Math.max(6, 12 - sz), height: Math.max(6, 12 - sz),
-                    borderRadius: "50%", background: color,
-                    border: `2px solid ${i < enemy.chainIdx ? "#0a0a0f" : "#fff8"}`,
-                    opacity: i < enemy.chainIdx ? 0.3 : 1,
-                    boxShadow: i === enemy.chainIdx ? `0 0 6px ${color}` : "none",
-                  }} />
-                ))}
-              </div>
+              {/* Color chain progress — scales to fit sprite width */}
+              {(() => {
+                const chainLen = enemy.chain.length;
+                const maxPipW = spriteSize * 0.8; // max width for all pips
+                const pipGap = Math.max(1, Math.min(2, maxPipW / chainLen * 0.15));
+                const pipSize = Math.max(5, Math.min(10, (maxPipW - pipGap * (chainLen - 1)) / chainLen));
+                return (
+                  <div style={{
+                    position:"absolute", bottom: -4, left:"50%", transform:"translateX(-50%)",
+                    display:"flex", gap: pipGap,
+                  }}>
+                    {enemy.chain.map((color, i) => (
+                      <div key={i} style={{
+                        width: pipSize, height: pipSize,
+                        borderRadius: "50%", background: color,
+                        border: `${Math.max(1, pipSize * 0.2)}px solid ${i < enemy.chainIdx ? "#0a0a0f" : "#fff8"}`,
+                        opacity: i < enemy.chainIdx ? 0.3 : 1,
+                        boxShadow: i === enemy.chainIdx ? `0 0 ${pipSize * 0.6}px ${color}` : "none",
+                      }} />
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
             {/* Hover tooltip */}
             {isHovered && (
@@ -1619,8 +1657,16 @@ const EnemyOverlay = ({ enemies, sz, turn, boardRef, hoveredEnemy, setHoveredEne
                   const a = ENEMY_ABILITIES[aId];
                   return <div key={aId} style={{ fontSize:9, color:"#ccc" }}>{a.icon} {a.name}: {a.desc}</div>;
                 })}
-                <div style={{ fontSize:8, color:"#888", marginTop:3 }}>
-                  Chain: {enemy.chain.map((c, i) => (i < enemy.chainIdx ? "✓" : "●")).join(" ")} ({enemy.chainIdx}/{enemy.chain.length})
+                <div style={{ display:"flex", alignItems:"center", gap:3, marginTop:3 }}>
+                  <span style={{ fontSize:8, color:"#888" }}>Chain:</span>
+                  {enemy.chain.map((c, i) => (
+                    <span key={i} style={{
+                      display:"inline-block", width:8, height:8, borderRadius:"50%",
+                      background: c, opacity: i < enemy.chainIdx ? 0.3 : 1,
+                      border: i === enemy.chainIdx ? "1px solid #fff" : "1px solid #0005",
+                    }} />
+                  ))}
+                  <span style={{ fontSize:8, color:"#888" }}>({enemy.chainIdx}/{enemy.chain.length})</span>
                 </div>
               </div>
             )}
@@ -1860,7 +1906,7 @@ export default function CellsRoguelike() {
           {s.hardMode && <span style={{ fontSize:"clamp(7px, 2vw, 9px)", fontWeight:800, color:T.danger, background:`${T.danger}20`, padding:"1px 4px", borderRadius:3, letterSpacing:0.5 }}>HARD</span>}
         </div>
         <div style={{ display:"flex", gap:4, alignItems:"center" }}>
-          <span style={{ fontSize:"clamp(9px, 2.5vw, 11px)", color:T.dim }}>Layer {s.mapLayer+1}/{MAP_LAYERS}</span>
+          <span style={{ fontSize:"clamp(9px, 2.5vw, 11px)", color:T.dim }}>F{s.floor} · {s.mapLayer}/{MAP_LAYERS}</span>
           {s.currentNodeType && <span style={{ fontSize:"clamp(10px, 3vw, 12px)", color:NODE_TYPES[s.currentNodeType]?.color }}>{NODE_TYPES[s.currentNodeType]?.icon}</span>}
         </div>
       </div>
