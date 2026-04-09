@@ -136,10 +136,10 @@ button { font-family: inherit; -webkit-appearance: none; appearance: none; }
     --card-max-w: 130px;
     --card-pad: 10px 12px;
     --map-w: min(85vw, 440px);
-    --tcg-w: clamp(48px, min(16vw, 12dvh), 96px);
+    --tcg-w: clamp(48px, min(16vw, 9dvh), 96px);
     --hand-overlap: -10px;
-    --hand-hover-y: clamp(-20px, -2.5dvh, -6px);
-    --hand-hover-scale: 1.2;
+    --hand-hover-y: clamp(-16px, -2dvh, -6px);
+    --hand-hover-scale: 1.15;
     --cell-bevel: 1.5px;
     --cell-lift: 1.5px;
   }
